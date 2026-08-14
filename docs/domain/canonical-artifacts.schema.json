@@ -1,0 +1,483 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-copilot.local/schemas/canonical-artifacts/1.0.0",
+  "title": "AI Marketing Copilot canonical artifacts",
+  "oneOf": [
+    { "$ref": "#/$defs/ObservationPacket" },
+    { "$ref": "#/$defs/ResearchFinding" },
+    { "$ref": "#/$defs/ConstraintCandidate" },
+    { "$ref": "#/$defs/Hypothesis" },
+    { "$ref": "#/$defs/ExperimentProposal" },
+    { "$ref": "#/$defs/PreparedAsset" },
+    { "$ref": "#/$defs/ExecutionRequest" },
+    { "$ref": "#/$defs/MeasurementReport" },
+    { "$ref": "#/$defs/LearningCandidate" },
+    { "$ref": "#/$defs/AllocationProposal" },
+    { "$ref": "#/$defs/DecisionRecord" }
+  ],
+  "$defs": {
+    "OpaqueId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]+$"
+    },
+    "Confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "Money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minor_units", "currency"],
+      "properties": {
+        "minor_units": { "type": "integer", "minimum": 0 },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+      }
+    },
+    "ArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref_type", "ref_id"],
+      "properties": {
+        "ref_type": {
+          "type": "string",
+          "enum": ["artifact", "source_record", "metric_snapshot", "memory_item", "decision", "experiment", "plan", "objective", "context_snapshot"]
+        },
+        "ref_id": { "$ref": "#/$defs/OpaqueId" },
+        "version": { "type": ["integer", "string"], "minLength": 1 }
+      }
+    },
+    "ProvenanceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_ref", "relation"],
+      "properties": {
+        "source_ref": { "$ref": "#/$defs/ArtifactRef" },
+        "relation": {
+          "type": "string",
+          "enum": ["supports", "contradicts", "derived_from", "measured_by", "supersedes", "used_in"]
+        },
+        "locator": { "type": "string", "maxLength": 500 },
+        "calculation_ref": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "Scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segment", "funnel_stage"],
+      "properties": {
+        "segment": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "channel": { "type": ["string", "null"], "maxLength": 100 },
+        "funnel_stage": {
+          "type": "string",
+          "enum": ["awareness", "acquisition", "conversion", "activation", "retention", "revenue", "referral", "measurement", "customer_understanding"]
+        },
+        "geography": { "type": ["string", "null"], "maxLength": 100 },
+        "product_version": { "type": ["string", "null"], "maxLength": 100 }
+      }
+    },
+    "Claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "epistemic_state", "confidence", "evidence_refs"],
+      "properties": {
+        "statement": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "epistemic_state": { "type": "string", "enum": ["fact", "inference", "unknown"] },
+        "confidence": { "$ref": "#/$defs/Confidence" },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProvenanceRef" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "MetricReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_definition_id", "window_start", "window_end", "quality_state"],
+      "properties": {
+        "metric_definition_id": { "$ref": "#/$defs/OpaqueId" },
+        "metric_snapshot_id": { "anyOf": [{ "$ref": "#/$defs/OpaqueId" }, { "type": "null" }] },
+        "window_start": { "type": "string", "format": "date-time" },
+        "window_end": { "type": "string", "format": "date-time" },
+        "segment": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "quality_state": { "type": "string", "enum": ["current", "stale", "missing", "conflicted", "invalid", "unknown"] }
+      }
+    },
+    "Factor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "rationale"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rationale": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "ArtifactEnvelope": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "artifact_type",
+        "schema_version",
+        "workspace_id",
+        "author_capability",
+        "created_at",
+        "context_snapshot_id",
+        "input_refs",
+        "confidence",
+        "status",
+        "provenance"
+      ],
+      "properties": {
+        "artifact_id": { "$ref": "#/$defs/OpaqueId" },
+        "artifact_type": { "type": "string" },
+        "schema_version": { "const": "1.0.0" },
+        "workspace_id": { "$ref": "#/$defs/OpaqueId" },
+        "author_capability": {
+          "type": "string",
+          "enum": ["growth_lead", "analytics", "research", "seo", "content", "outreach", "cro", "system", "founder"]
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "context_snapshot_id": { "$ref": "#/$defs/OpaqueId" },
+        "input_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ArtifactRef" },
+          "uniqueItems": true
+        },
+        "confidence": { "$ref": "#/$defs/Confidence" },
+        "status": { "type": "string", "enum": ["draft", "proposed", "validated", "approved", "rejected", "superseded", "failed"] },
+        "provenance": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProvenanceRef" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "ObservationPacket": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "as_of", "metric_refs", "observations", "data_quality_summary", "anomalies", "missing_information"],
+          "properties": {
+            "artifact_type": { "const": "ObservationPacket" },
+            "as_of": { "type": "string", "format": "date-time" },
+            "metric_refs": { "type": "array", "items": { "$ref": "#/$defs/MetricReference" } },
+            "observations": { "type": "array", "items": { "$ref": "#/$defs/Claim" }, "minItems": 1 },
+            "data_quality_summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+            "anomalies": { "type": "array", "items": { "$ref": "#/$defs/Claim" } },
+            "missing_information": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ResearchFinding": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "topic", "finding", "scope", "freshness", "citations", "strategic_relevance"],
+          "properties": {
+            "artifact_type": { "const": "ResearchFinding" },
+            "topic": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "finding": { "$ref": "#/$defs/Claim" },
+            "scope": { "$ref": "#/$defs/Scope" },
+            "freshness": { "type": "string", "format": "date-time" },
+            "expires_at": { "type": ["string", "null"], "format": "date-time" },
+            "citations": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["url", "title", "accessed_at"],
+                "properties": {
+                  "url": { "type": "string", "format": "uri" },
+                  "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+                  "accessed_at": { "type": "string", "format": "date-time" }
+                }
+              }
+            },
+            "strategic_relevance": { "type": "string", "minLength": 1, "maxLength": 1500 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ConstraintCandidate": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "objective_id", "stage_or_problem", "factors", "computed_score", "supporting_evidence", "contradicting_evidence", "data_needed", "reconsideration_rule"],
+          "properties": {
+            "artifact_type": { "const": "ConstraintCandidate" },
+            "objective_id": { "$ref": "#/$defs/OpaqueId" },
+            "stage_or_problem": { "type": "string", "enum": ["awareness", "acquisition", "conversion", "activation", "retention", "revenue", "referral", "measurement", "customer_understanding"] },
+            "factors": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["impact", "reach", "tractability", "evidence_quality", "urgency"],
+              "properties": {
+                "impact": { "$ref": "#/$defs/Factor" },
+                "reach": { "$ref": "#/$defs/Factor" },
+                "tractability": { "$ref": "#/$defs/Factor" },
+                "evidence_quality": { "$ref": "#/$defs/Factor" },
+                "urgency": { "$ref": "#/$defs/Factor" }
+              }
+            },
+            "computed_score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "supporting_evidence": { "type": "array", "items": { "$ref": "#/$defs/ProvenanceRef" } },
+            "contradicting_evidence": { "type": "array", "items": { "$ref": "#/$defs/ProvenanceRef" } },
+            "data_needed": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+            "reconsideration_rule": { "type": "string", "minLength": 1, "maxLength": 1000 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Hypothesis": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "objective_id", "constraint_candidate_id", "observation", "statement", "mechanism", "scope", "falsification_condition"],
+          "properties": {
+            "artifact_type": { "const": "Hypothesis" },
+            "objective_id": { "$ref": "#/$defs/OpaqueId" },
+            "constraint_candidate_id": { "$ref": "#/$defs/OpaqueId" },
+            "observation": { "$ref": "#/$defs/Claim" },
+            "statement": { "type": "string", "minLength": 1, "maxLength": 1200 },
+            "mechanism": { "type": "string", "minLength": 1, "maxLength": 1500 },
+            "scope": { "$ref": "#/$defs/Scope" },
+            "falsification_condition": { "type": "string", "minLength": 1, "maxLength": 1000 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ExperimentProposal": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "objective_id", "constraint_candidate_id", "hypothesis_id", "title", "target_segment", "intervention", "exposure_definition", "primary_metric", "guardrail_metrics", "baseline", "expected_direction", "minimum_evidence", "duration_days", "founder_minutes", "cash_budget", "risk_class", "reversibility", "instrumentation_check", "decision_rule", "priority_factors"],
+          "properties": {
+            "artifact_type": { "const": "ExperimentProposal" },
+            "objective_id": { "$ref": "#/$defs/OpaqueId" },
+            "constraint_candidate_id": { "$ref": "#/$defs/OpaqueId" },
+            "hypothesis_id": { "$ref": "#/$defs/OpaqueId" },
+            "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "target_segment": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "intervention": { "type": "string", "minLength": 1, "maxLength": 2000 },
+            "comparison": { "type": ["string", "null"], "maxLength": 1000 },
+            "exposure_definition": { "type": "string", "minLength": 1, "maxLength": 1000 },
+            "primary_metric": { "$ref": "#/$defs/MetricReference" },
+            "guardrail_metrics": { "type": "array", "items": { "$ref": "#/$defs/MetricReference" } },
+            "baseline": { "type": ["number", "null"] },
+            "expected_direction": { "type": "string", "enum": ["increase", "decrease", "maintain"] },
+            "expected_magnitude": { "type": ["number", "null"] },
+            "minimum_evidence": { "type": "string", "minLength": 1, "maxLength": 1000 },
+            "duration_days": { "type": "integer", "minimum": 1, "maximum": 365 },
+            "founder_minutes": { "type": "integer", "minimum": 0 },
+            "cash_budget": { "$ref": "#/$defs/Money" },
+            "risk_class": { "type": "string", "enum": ["A", "B", "C", "D", "E", "F"] },
+            "reversibility": { "type": "number", "minimum": 0, "maximum": 1 },
+            "instrumentation_check": { "type": "string", "minLength": 1, "maxLength": 1000 },
+            "prerequisites": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+            "decision_rule": { "type": "string", "minLength": 1, "maxLength": 1500 },
+            "priority_factors": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["expected_goal_impact", "confidence", "learning_value", "reversibility", "founder_effort", "cash_cost", "time_to_learning", "risk"],
+              "properties": {
+                "expected_goal_impact": { "$ref": "#/$defs/Factor" },
+                "confidence": { "$ref": "#/$defs/Factor" },
+                "learning_value": { "$ref": "#/$defs/Factor" },
+                "reversibility": { "$ref": "#/$defs/Factor" },
+                "founder_effort": { "$ref": "#/$defs/Factor" },
+                "cash_cost": { "$ref": "#/$defs/Factor" },
+                "time_to_learning": { "$ref": "#/$defs/Factor" },
+                "risk": { "$ref": "#/$defs/Factor" }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PreparedAsset": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "experiment_id", "asset_type", "title", "content", "brand_constraints_applied", "claims_requiring_substantiation", "risk_class", "export_format"],
+          "properties": {
+            "artifact_type": { "const": "PreparedAsset" },
+            "experiment_id": { "$ref": "#/$defs/OpaqueId" },
+            "asset_type": { "type": "string", "enum": ["interview_guide", "outreach_draft", "positioning_variants", "seo_brief", "content_brief", "script", "cro_copy", "wire_copy", "event_spec", "engineering_ticket", "research_brief"] },
+            "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "content": { "type": ["string", "object", "array"] },
+            "brand_constraints_applied": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+            "claims_requiring_substantiation": { "type": "array", "items": { "$ref": "#/$defs/Claim" } },
+            "risk_class": { "type": "string", "enum": ["B", "C"] },
+            "export_format": { "type": "string", "enum": ["markdown", "plain_text", "json", "csv"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ExecutionRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "experiment_id", "action_type", "risk_class", "target", "exact_action", "preview_ref", "permission_grant_id", "approval_request_id", "idempotency_key", "expected_cost", "guardrails"],
+          "properties": {
+            "artifact_type": { "const": "ExecutionRequest" },
+            "experiment_id": { "$ref": "#/$defs/OpaqueId" },
+            "action_type": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "risk_class": { "type": "string", "enum": ["A", "B", "C", "D", "E", "F"] },
+            "target": { "type": "string", "minLength": 1, "maxLength": 1000 },
+            "exact_action": { "type": "string", "minLength": 1, "maxLength": 2000 },
+            "preview_ref": { "$ref": "#/$defs/ArtifactRef" },
+            "permission_grant_id": { "$ref": "#/$defs/OpaqueId" },
+            "approval_request_id": { "$ref": "#/$defs/OpaqueId" },
+            "idempotency_key": { "type": "string", "minLength": 16, "maxLength": 200 },
+            "expected_cost": { "$ref": "#/$defs/Money" },
+            "guardrails": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "MeasurementReport": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "experiment_id", "experiment_version", "validity_state", "result_classification", "exposure", "primary_metric_result", "guardrail_results", "raw_counts", "uncertainty_summary", "protocol_deviations", "causal_language"],
+          "properties": {
+            "artifact_type": { "const": "MeasurementReport" },
+            "experiment_id": { "$ref": "#/$defs/OpaqueId" },
+            "experiment_version": { "type": "integer", "minimum": 1 },
+            "validity_state": { "type": "string", "enum": ["valid", "invalid", "insufficient_evidence"] },
+            "result_classification": { "type": "string", "enum": ["win", "loss", "inconclusive", "invalid", "stopped"] },
+            "exposure": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["exposed_count", "comparison_count", "quality_state"],
+              "properties": {
+                "exposed_count": { "type": "integer", "minimum": 0 },
+                "comparison_count": { "type": ["integer", "null"], "minimum": 0 },
+                "quality_state": { "type": "string", "enum": ["current", "stale", "missing", "conflicted", "invalid", "unknown"] }
+              }
+            },
+            "primary_metric_result": { "$ref": "#/$defs/Claim" },
+            "guardrail_results": { "type": "array", "items": { "$ref": "#/$defs/Claim" } },
+            "raw_counts": { "type": "object", "minProperties": 1, "additionalProperties": { "type": ["integer", "number", "null"] } },
+            "uncertainty_summary": { "type": "string", "minLength": 1, "maxLength": 1500 },
+            "protocol_deviations": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+            "causal_language": { "type": "string", "enum": ["descriptive_only", "directional_association", "causal_supported"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "LearningCandidate": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "measurement_report_id", "statement", "scope", "validity_checked", "contradiction_refs", "applicability", "recommended_consequence", "verification_required"],
+          "properties": {
+            "artifact_type": { "const": "LearningCandidate" },
+            "measurement_report_id": { "$ref": "#/$defs/OpaqueId" },
+            "statement": { "$ref": "#/$defs/Claim" },
+            "scope": { "$ref": "#/$defs/Scope" },
+            "validity_checked": { "const": true },
+            "contradiction_refs": { "type": "array", "items": { "$ref": "#/$defs/ArtifactRef" } },
+            "applicability": { "type": "string", "minLength": 1, "maxLength": 1500 },
+            "recommended_consequence": { "type": "string", "minLength": 1, "maxLength": 1500 },
+            "expires_at": { "type": ["string", "null"], "format": "date-time" },
+            "verification_required": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "AllocationProposal": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "objective_id", "plan_period_start", "plan_period_end", "constraint_candidate_id", "allocations", "total_founder_minutes", "total_cash", "experiment_ids", "deprioritized", "change_explanation"],
+          "properties": {
+            "artifact_type": { "const": "AllocationProposal" },
+            "objective_id": { "$ref": "#/$defs/OpaqueId" },
+            "plan_period_start": { "type": "string", "format": "date" },
+            "plan_period_end": { "type": "string", "format": "date" },
+            "constraint_candidate_id": { "$ref": "#/$defs/OpaqueId" },
+            "allocations": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["theme", "founder_minutes", "cash", "agent_budget", "rationale"],
+                "properties": {
+                  "theme": { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "founder_minutes": { "type": "integer", "minimum": 0 },
+                  "cash": { "$ref": "#/$defs/Money" },
+                  "agent_budget": { "$ref": "#/$defs/Money" },
+                  "rationale": { "type": "string", "minLength": 1, "maxLength": 1000 }
+                }
+              }
+            },
+            "total_founder_minutes": { "type": "integer", "minimum": 0 },
+            "total_cash": { "$ref": "#/$defs/Money" },
+            "experiment_ids": { "type": "array", "maxItems": 3, "items": { "$ref": "#/$defs/OpaqueId" }, "uniqueItems": true },
+            "deprioritized": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["idea", "reason"],
+                "properties": {
+                  "idea": { "type": "string", "minLength": 1, "maxLength": 500 },
+                  "reason": { "type": "string", "minLength": 1, "maxLength": 1000 }
+                }
+              }
+            },
+            "change_explanation": { "type": "string", "pattern": "^We changed .+ because evidence .+ (increased|decreased|changed) belief .+\\.$" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "DecisionRecord": {
+      "allOf": [
+        { "$ref": "#/$defs/ArtifactEnvelope" },
+        {
+          "type": "object",
+          "required": ["artifact_type", "decision_type", "target_ref", "target_version", "outcome", "reason", "decided_by_user_id", "decided_at"],
+          "properties": {
+            "artifact_type": { "const": "DecisionRecord" },
+            "decision_type": { "type": "string", "enum": ["confirm", "override", "approve", "edit", "reject", "defer", "cancel", "stop", "verify", "dispute", "supersede", "forget", "grant", "revoke"] },
+            "target_ref": { "$ref": "#/$defs/ArtifactRef" },
+            "target_version": { "type": ["integer", "string"], "minLength": 1 },
+            "outcome": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+            "decided_by_user_id": { "$ref": "#/$defs/OpaqueId" },
+            "decided_at": { "type": "string", "format": "date-time" },
+            "supersedes_decision_id": { "anyOf": [{ "$ref": "#/$defs/OpaqueId" }, { "type": "null" }] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}
