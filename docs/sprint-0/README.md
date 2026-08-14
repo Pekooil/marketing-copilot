@@ -3,6 +3,8 @@
 **Execution mode:** Preparation only until real founder testing is authorized.  
 **Sprint outcome:** Prove the adaptive decision loop before authorizing application implementation.
 
+Current gate: [preparation complete; field evidence deferred; Sprint 0 not passed](status-and-gate.md).
+
 ## Task packages
 
 1. [Founder recruitment kit](01-recruitment/README.md)
