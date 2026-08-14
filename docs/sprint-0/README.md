@@ -12,7 +12,7 @@
 5. [Analytics-platform prevalence and connector decision study](05-connector-study/README.md)
 6. [Pricing-language and willingness-to-pay study](06-pricing-study/README.md)
 7. [Domain glossary, state transitions, action policy, and artifact contracts](07-domain-contracts/README.md)
-8. Draft evaluation fixtures and expert-review rubric
+8. [Draft evaluation fixtures and expert-review rubric](08-evaluation/README.md)
 
 ## Status language
 
