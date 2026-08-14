@@ -6,7 +6,7 @@
 ## Task packages
 
 1. [Founder recruitment kit](01-recruitment/README.md)
-2. Manual onboarding and baseline protocol
+2. [Manual onboarding and baseline protocol](02-onboarding/README.md)
 3. Constraint Brief and experiment delivery kit
 4. Two-week review and adaptation kit
 5. Analytics-platform prevalence and connector decision study
@@ -22,4 +22,3 @@
 - `Gate passed`: exit thresholds are met and a founder/product decision authorizes Sprint 1.
 
 Preparation does not count as validation. No document in this directory may claim participant evidence unless it references a dated, consented study record.
-
