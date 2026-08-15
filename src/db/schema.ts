@@ -23,6 +23,8 @@ export const baselineState = appSchema.enum("baseline_state", ["known", "unknown
 export const objectiveDirection = appSchema.enum("objective_direction", ["increase", "decrease"]);
 export const riskTolerance = appSchema.enum("risk_tolerance", ["low", "medium", "high"]);
 export const mutationStatus = appSchema.enum("mutation_status", ["started", "succeeded", "failed"]);
+export const auditActorType = appSchema.enum("audit_actor_type", ["founder", "worker", "support"]);
+export const auditResult = appSchema.enum("audit_result", ["succeeded", "denied"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -208,5 +210,32 @@ export const mutationReceipts = appSchema.table(
   (table) => [
     uniqueIndex("mutation_receipt_scope_unique").on(table.workspaceId, table.idempotencyKey),
     index("mutation_receipt_request_idx").on(table.workspaceId, table.requestId),
+  ],
+);
+
+export const auditEvents = appSchema.table(
+  "audit_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id),
+    actorType: auditActorType("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    targetVersion: integer("target_version"),
+    requestId: uuid("request_id").notNull(),
+    result: auditResult("result").notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("audit_event_workspace_created_idx").on(table.workspaceId, table.createdAt),
+    uniqueIndex("audit_event_request_action_result_unique").on(
+      table.workspaceId,
+      table.requestId,
+      table.action,
+      table.result,
+    ),
   ],
 );
