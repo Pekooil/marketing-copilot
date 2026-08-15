@@ -1,8 +1,8 @@
 # ADR-002: Supabase database, auth, and storage host
 
-**Status:** Proposed  
+**Status:** Accepted for Sprint 1
 **Decision owner:** Engineering lead and security reviewer  
-**Review gate:** Sprint 0 go decision
+**Accepted:** August 15, 2026 by explicit founder gate override
 
 ## Context
 
@@ -52,4 +52,3 @@ Supabase provides full PostgreSQL and supports RLS; its documentation requires R
 ## Acceptance
 
 The ADR is accepted only when automated tests prove no cross-tenant read or write through API, repository, background worker, or direct authenticated database access.
-

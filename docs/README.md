@@ -17,6 +17,7 @@ This package converts the product source of truth into decision-ready, no-code i
 ## Delivery planning
 
 - [Sprint 0 preparation workspace](sprint-0/README.md)
+- [Sprint 1 implementation workspace](sprint-1/README.md)
 - [Sprint 0–12 purpose roadmap](planning/sprint-roadmap.md)
 - [Dependency-ordered vertical-slice plan](planning/vertical-slice-plan.md)
 - [Sprint 0 ticket plan](planning/sprint-0-tickets.md)

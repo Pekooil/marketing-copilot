@@ -1,6 +1,6 @@
 # Sprint 0 status and go/no-go gate
 
-**Status:** Preparation complete; field validation deferred; gate not passed  
+**Status:** Preparation complete; field validation deferred; gate not passed; founder override authorizes Sprint 1
 **As of:** August 14, 2026
 
 ## Task status
@@ -29,7 +29,7 @@ The gate requires:
 - reviewed domain contracts and expert-reviewed evaluation cases;
 - a founder/product `go`, `iterate`, or `stop` decision.
 
-Preparation cannot substitute for these observations. Sprint 1 implementation remains unauthorized until the founder explicitly resumes field validation and records a supported `go` decision.
+Preparation cannot substitute for these observations. On August 15, 2026, the founder explicitly authorized Sprint 1 as a gate override. This permits implementation but does not convert missing field evidence into a passed validation gate.
 
 ## Resume checklist
 
@@ -45,4 +45,3 @@ Preparation cannot substitute for these observations. Sprint 1 implementation re
 ## Scope delivered now
 
 The repository contains a complete, reproducible Sprint 0 operating kit and proposed product contracts. It contains no application implementation, no real participant data, no invented validation results, and no authorization to begin Sprint 1.
-
