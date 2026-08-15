@@ -14,7 +14,7 @@ describe("health contract", () => {
       service: "marketing-copilot-web",
       environment: "development",
       version: "local",
-      migration: "20260815105500_company_profile",
+      migration: "20260815110000_objective",
     });
   });
 });

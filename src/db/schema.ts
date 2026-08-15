@@ -3,6 +3,8 @@ import {
   index,
   integer,
   jsonb,
+  date,
+  numeric,
   pgSchema,
   primaryKey,
   text,
@@ -15,6 +17,9 @@ export const appSchema = pgSchema("app");
 export const membershipRole = appSchema.enum("membership_role", ["owner", "member"]);
 export const membershipStatus = appSchema.enum("membership_status", ["active", "inactive"]);
 export const companyProfileStatus = appSchema.enum("company_profile_status", ["draft", "active"]);
+export const objectiveStatus = appSchema.enum("objective_status", ["draft", "active", "superseded"]);
+export const baselineState = appSchema.enum("baseline_state", ["known", "unknown"]);
+export const objectiveDirection = appSchema.enum("objective_direction", ["increase", "decrease"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -100,5 +105,47 @@ export const companyProfileVersions = appSchema.table(
   (table) => [
     uniqueIndex("company_profile_version_unique").on(table.companyProfileId, table.version),
     index("company_profile_version_workspace_idx").on(table.workspaceId, table.companyProfileId),
+  ],
+);
+
+export const objectives = appSchema.table(
+  "objective",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    currentVersionId: uuid("current_version_id"),
+    status: objectiveStatus("status").notNull().default("draft"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("objective_one_active_per_workspace")
+      .on(table.workspaceId)
+      .where(sql`${table.status} = 'active'`),
+    index("objective_workspace_status_idx").on(table.workspaceId, table.status),
+  ],
+);
+
+export const objectiveVersions = appSchema.table(
+  "objective_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    objectiveId: uuid("objective_id").notNull().references(() => objectives.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    metricName: text("metric_name"),
+    metricDefinition: text("metric_definition"),
+    direction: objectiveDirection("direction"),
+    targetValue: numeric("target_value", { precision: 20, scale: 6 }),
+    baselineValue: numeric("baseline_value", { precision: 20, scale: 6 }),
+    baselineState: baselineState("baseline_state").notNull().default("unknown"),
+    deadline: date("deadline"),
+    targetSegment: text("target_segment"),
+    rationale: text("rationale"),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("objective_version_unique").on(table.objectiveId, table.version),
+    index("objective_version_workspace_idx").on(table.workspaceId, table.objectiveId),
   ],
 );

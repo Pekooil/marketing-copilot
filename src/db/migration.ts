@@ -1,1 +1,1 @@
-export const MIGRATION_VERSION = "20260815105500_company_profile";
+export const MIGRATION_VERSION = "20260815110000_objective";
