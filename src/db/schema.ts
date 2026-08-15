@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   index,
   integer,
+  jsonb,
   pgSchema,
   primaryKey,
   text,
@@ -13,6 +14,7 @@ import {
 export const appSchema = pgSchema("app");
 export const membershipRole = appSchema.enum("membership_role", ["owner", "member"]);
 export const membershipStatus = appSchema.enum("membership_status", ["active", "inactive"]);
+export const companyProfileStatus = appSchema.enum("company_profile_status", ["draft", "active"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -70,3 +72,33 @@ export const membershipRelations = relations(memberships, ({ one }) => ({
   workspace: one(workspaces, { fields: [memberships.workspaceId], references: [workspaces.id] }),
   user: one(userAccounts, { fields: [memberships.userId], references: [userAccounts.id] }),
 }));
+
+export const companyProfiles = appSchema.table(
+  "company_profile",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    currentVersionId: uuid("current_version_id"),
+    status: companyProfileStatus("status").notNull().default("draft"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("company_profile_workspace_unique").on(table.workspaceId)],
+);
+
+export const companyProfileVersions = appSchema.table(
+  "company_profile_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    companyProfileId: uuid("company_profile_id").notNull().references(() => companyProfiles.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    canonicalPayload: jsonb("canonical_payload").notNull(),
+    createdByActor: text("created_by_actor").notNull(),
+    founderDecisionRef: text("founder_decision_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("company_profile_version_unique").on(table.companyProfileId, table.version),
+    index("company_profile_version_workspace_idx").on(table.workspaceId, table.companyProfileId),
+  ],
+);
