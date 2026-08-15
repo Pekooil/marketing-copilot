@@ -1,6 +1,6 @@
 # Sprint 1 — secure workspace foundation
 
-**Status:** Authorized for implementation  
+**Status:** Implementation complete; production gate blocked by documented prerequisites
 **Authorization date:** August 15, 2026  
 **Plan:** [Conditional ticket plan](../planning/sprint-1-gate.md)
 
@@ -39,4 +39,4 @@ The founder explicitly authorized Sprint 1 before real Sprint 0 field validation
 | S1-014 | Feature flags and observability | Complete |
 | S1-015 | Product analytics | Complete |
 | S1-016 | Release/isolation suite | Implemented; raw DB scenarios pending runtime |
-| S1-017 | Support trace, runbook, rollback, demo | Pending |
+| S1-017 | Support trace, runbook, rollback, demo | Implemented; staging rehearsal pending runtime |

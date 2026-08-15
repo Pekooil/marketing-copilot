@@ -239,3 +239,18 @@ export const auditEvents = appSchema.table(
     ),
   ],
 );
+
+export const supportAccessGrants = appSchema.table(
+  "support_access_grant",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    supportUserId: uuid("support_user_id").notNull().references(() => userAccounts.id, { onDelete: "cascade" }),
+    approvedBy: uuid("approved_by").notNull().references(() => userAccounts.id),
+    reason: text("reason").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("support_access_lookup_idx").on(table.workspaceId, table.supportUserId, table.expiresAt)],
+);
