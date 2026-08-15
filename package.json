@@ -26,6 +26,8 @@
     "ci": "pnpm lint && pnpm typecheck && pnpm schema:check && pnpm migration:check && pnpm test && pnpm build"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
     "drizzle-orm": "^0.45.2",
     "geist": "^1.7.2",
     "next": "16.3.1",
