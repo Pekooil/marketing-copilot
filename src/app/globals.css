@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #f4f5f0;
+  --surface: #fbfcf8;
+  --ink: #17201d;
+  --muted: #59645f;
+  --line: #d9ded8;
+  --accent: #176b52;
+  --accent-strong: #0d4f3b;
+  --focus: #1e73be;
+}
+
+@theme inline {
+  --color-background: var(--canvas);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--canvas);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  outline-color: var(--focus);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: #b9dfd1;
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

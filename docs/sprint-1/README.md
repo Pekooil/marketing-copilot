@@ -24,7 +24,7 @@ The founder explicitly authorized Sprint 1 before real Sprint 0 field validation
 | Ticket | Outcome | Status |
 |---|---|---|
 | S1-001 | Contracts and threat model ratified | Complete |
-| S1-002 | Application shell and environment contract | Pending |
+| S1-002 | Application shell and environment contract | Complete |
 | S1-003 | CI quality and migration gates | Pending |
 | S1-004 | Identity/tenancy migration | Pending |
 | S1-005 | Auth and session adapter | Pending |
@@ -40,4 +40,3 @@ The founder explicitly authorized Sprint 1 before real Sprint 0 field validation
 | S1-015 | Product analytics | Pending |
 | S1-016 | Release/isolation suite | Pending |
 | S1-017 | Support trace, runbook, rollback, demo | Pending |
-
