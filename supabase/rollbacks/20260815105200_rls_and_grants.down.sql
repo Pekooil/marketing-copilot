@@ -1,0 +1,20 @@
+-- Fail-closed rollback: remove policies and grants but retain FORCE RLS.
+begin;
+drop event trigger if exists app_new_table_default_deny;
+drop function if exists app.auto_secure_new_table();
+drop policy if exists membership_worker_scope on app.membership;
+drop policy if exists workspace_worker_scope on app.workspace;
+drop policy if exists membership_delete_owner on app.membership;
+drop policy if exists membership_update_owner on app.membership;
+drop policy if exists membership_insert_owner on app.membership;
+drop policy if exists membership_select_member on app.membership;
+drop policy if exists workspace_update_owner on app.workspace;
+drop policy if exists workspace_insert_creator on app.workspace;
+drop policy if exists workspace_select_member on app.workspace;
+drop policy if exists user_account_update_self on app.user_account;
+drop policy if exists user_account_insert_self on app.user_account;
+drop policy if exists user_account_select_self on app.user_account;
+revoke all on all tables in schema app from anon, authenticated, app_worker, public;
+drop function if exists app.is_active_owner(uuid);
+drop function if exists app.is_active_member(uuid);
+commit;

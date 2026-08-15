@@ -14,7 +14,7 @@ describe("health contract", () => {
       service: "marketing-copilot-web",
       environment: "development",
       version: "local",
-      migration: "20260815102000_identity_tenancy",
+      migration: "20260815105200_rls_and_grants",
     });
   });
 });

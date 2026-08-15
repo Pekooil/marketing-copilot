@@ -29,7 +29,7 @@ The founder explicitly authorized Sprint 1 before real Sprint 0 field validation
 | S1-004 | Identity/tenancy migration | Implemented; DB rehearsal pending runtime |
 | S1-005 | Auth and session adapter | Complete |
 | S1-006 | Workspace authorization service | Complete |
-| S1-007 | RLS and grants | Pending |
+| S1-007 | RLS and grants | Implemented; raw DB suite pending runtime |
 | S1-008 | Versioned Company Profile | Pending |
 | S1-009 | Objective domain | Pending |
 | S1-010 | Resource/policy constraints | Pending |
