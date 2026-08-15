@@ -2,9 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getSupabaseConfig } from "@/lib/supabase/config";
+import { isFeatureEnabled } from "@/observability/feature-flags";
 
 export async function proxy(request: NextRequest) {
+  if (!isFeatureEnabled("authentication")) return signInRedirect(request);
   let response = NextResponse.next({ request });
+  const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
+  request.headers.set("x-request-id", requestId);
   let config;
 
   try {
@@ -30,6 +34,8 @@ export async function proxy(request: NextRequest) {
   if (error || !data?.claims?.sub) {
     return signInRedirect(request);
   }
+
+  response.headers.set("x-request-id", requestId);
 
   return response;
 }

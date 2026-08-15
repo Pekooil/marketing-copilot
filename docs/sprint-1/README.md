@@ -36,7 +36,7 @@ The founder explicitly authorized Sprint 1 before real Sprint 0 field validation
 | S1-011 | Mutation and error contract | Complete |
 | S1-012 | Immutable audit pipeline | Complete |
 | S1-013 | Onboarding UI | Implemented; server persistence adapter pending credentials |
-| S1-014 | Feature flags and observability | Pending |
+| S1-014 | Feature flags and observability | Complete |
 | S1-015 | Product analytics | Pending |
 | S1-016 | Release/isolation suite | Pending |
 | S1-017 | Support trace, runbook, rollback, demo | Pending |

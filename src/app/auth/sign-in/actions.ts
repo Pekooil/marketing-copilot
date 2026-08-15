@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { safeReturnPath } from "@/auth/redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireFeature } from "@/observability/feature-flags";
 
 const signInSchema = z.object({
   email: z.email(),
@@ -14,6 +15,7 @@ const signInSchema = z.object({
 });
 
 export async function signIn(formData: FormData) {
+  requireFeature("authentication");
   const parsed = signInSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     redirect("/auth/sign-in?error=invalid_input" as Route);
