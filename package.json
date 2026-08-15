@@ -19,6 +19,8 @@
     "test:integration": "vitest run --project integration",
     "test:isolation": "vitest run --project isolation",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:release": "pnpm lint && pnpm typecheck && pnpm schema:check && pnpm migration:check && pnpm test && pnpm build && pnpm test:e2e",
     "schema:check": "node scripts/validate-schemas.mjs",
     "migration:check": "node scripts/validate-migrations.mjs",
     "db:generate": "drizzle-kit generate",
@@ -39,6 +41,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.2.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
