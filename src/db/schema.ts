@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   index,
+  bigint,
   integer,
   jsonb,
   date,
@@ -20,6 +21,7 @@ export const companyProfileStatus = appSchema.enum("company_profile_status", ["d
 export const objectiveStatus = appSchema.enum("objective_status", ["draft", "active", "superseded"]);
 export const baselineState = appSchema.enum("baseline_state", ["known", "unknown"]);
 export const objectiveDirection = appSchema.enum("objective_direction", ["increase", "decrease"]);
+export const riskTolerance = appSchema.enum("risk_tolerance", ["low", "medium", "high"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -147,5 +149,42 @@ export const objectiveVersions = appSchema.table(
   (table) => [
     uniqueIndex("objective_version_unique").on(table.objectiveId, table.version),
     index("objective_version_workspace_idx").on(table.workspaceId, table.objectiveId),
+  ],
+);
+
+export const resourceConstraints = appSchema.table(
+  "resource_constraint",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    objectiveId: uuid("objective_id").notNull().references(() => objectives.id, { onDelete: "cascade" }),
+    currentVersionId: uuid("current_version_id"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("resource_constraint_objective_unique").on(table.workspaceId, table.objectiveId)],
+);
+
+export const resourceConstraintVersions = appSchema.table(
+  "resource_constraint_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    resourceConstraintId: uuid("resource_constraint_id").notNull().references(() => resourceConstraints.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    founderMinutesPerWeek: integer("founder_minutes_per_week").notNull(),
+    cashBudgetMinor: bigint("cash_budget_minor", { mode: "number" }).notNull(),
+    currency: text("currency").notNull(),
+    riskTolerance: riskTolerance("risk_tolerance").notNull(),
+    prohibitedTactics: jsonb("prohibited_tactics").notNull(),
+    brandRules: jsonb("brand_rules").notNull(),
+    audienceLimits: jsonb("audience_limits").notNull(),
+    geographyLimits: jsonb("geography_limits").notNull(),
+    approvalPreferences: jsonb("approval_preferences").notNull(),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("resource_constraint_version_unique").on(table.resourceConstraintId, table.version),
+    index("resource_constraint_version_workspace_idx").on(table.workspaceId, table.resourceConstraintId),
   ],
 );

@@ -32,7 +32,7 @@ The founder explicitly authorized Sprint 1 before real Sprint 0 field validation
 | S1-007 | RLS and grants | Implemented; raw DB suite pending runtime |
 | S1-008 | Versioned Company Profile | Complete |
 | S1-009 | Objective domain | Complete |
-| S1-010 | Resource/policy constraints | Pending |
+| S1-010 | Resource/policy constraints | Complete |
 | S1-011 | Mutation and error contract | Pending |
 | S1-012 | Immutable audit pipeline | Pending |
 | S1-013 | Onboarding UI | Pending |
