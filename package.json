@@ -2,6 +2,7 @@
   "name": "marketing-copilot",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -11,13 +12,22 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm test:unit && pnpm test:integration && pnpm test:isolation",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:isolation": "vitest run --project isolation",
+    "test:coverage": "vitest run --coverage",
+    "schema:check": "node scripts/validate-schemas.mjs",
+    "migration:check": "node scripts/validate-migrations.mjs",
+    "ci": "pnpm lint && pnpm typecheck && pnpm schema:check && pnpm migration:check && pnpm test && pnpm build"
   },
   "dependencies": {
     "geist": "^1.7.2",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -25,9 +35,13 @@
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "@vitest/coverage-v8": "^4.1.10",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "eslint": "^9.39.0",
     "eslint-config-next": "16.3.1",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }
