@@ -22,6 +22,7 @@ export const objectiveStatus = appSchema.enum("objective_status", ["draft", "act
 export const baselineState = appSchema.enum("baseline_state", ["known", "unknown"]);
 export const objectiveDirection = appSchema.enum("objective_direction", ["increase", "decrease"]);
 export const riskTolerance = appSchema.enum("risk_tolerance", ["low", "medium", "high"]);
+export const mutationStatus = appSchema.enum("mutation_status", ["started", "succeeded", "failed"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -186,5 +187,26 @@ export const resourceConstraintVersions = appSchema.table(
   (table) => [
     uniqueIndex("resource_constraint_version_unique").on(table.resourceConstraintId, table.version),
     index("resource_constraint_version_workspace_idx").on(table.workspaceId, table.resourceConstraintId),
+  ],
+);
+
+export const mutationReceipts = appSchema.table(
+  "mutation_receipt",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    requestId: uuid("request_id").notNull(),
+    action: text("action").notNull(),
+    status: mutationStatus("status").notNull().default("started"),
+    resultRef: text("result_ref"),
+    errorCode: text("error_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("mutation_receipt_scope_unique").on(table.workspaceId, table.idempotencyKey),
+    index("mutation_receipt_request_idx").on(table.workspaceId, table.requestId),
   ],
 );
