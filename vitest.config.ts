@@ -25,6 +25,7 @@ export default defineConfig({
     },
     projects: [
       defineProject({ resolve, test: { ...shared, name: "unit", include: ["tests/unit/**/*.test.ts"] } }),
+      defineProject({ resolve, test: { ...shared, name: "component", environment: "jsdom", setupFiles: ["tests/setup/component.ts"], include: ["tests/components/**/*.test.tsx"] } }),
       defineProject({ resolve, test: { ...shared, name: "integration", include: ["tests/integration/**/*.test.ts"] } }),
       defineProject({ resolve, test: { ...shared, name: "isolation", include: ["tests/isolation/**/*.test.ts"] } }),
     ],

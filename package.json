@@ -13,8 +13,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm test:unit && pnpm test:integration && pnpm test:isolation",
+    "test": "pnpm test:unit && pnpm test:component && pnpm test:integration && pnpm test:isolation",
     "test:unit": "vitest run --project unit",
+    "test:component": "vitest run --project component",
     "test:integration": "vitest run --project integration",
     "test:isolation": "vitest run --project isolation",
     "test:coverage": "vitest run --coverage",
@@ -39,6 +40,9 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.4",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
@@ -48,6 +52,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.0",
     "eslint-config-next": "16.3.1",
+    "jsdom": "^30.0.1",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
