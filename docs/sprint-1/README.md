@@ -26,7 +26,7 @@ The founder explicitly authorized Sprint 1 before real Sprint 0 field validation
 | S1-001 | Contracts and threat model ratified | Complete |
 | S1-002 | Application shell and environment contract | Complete |
 | S1-003 | CI quality and migration gates | Complete |
-| S1-004 | Identity/tenancy migration | Pending |
+| S1-004 | Identity/tenancy migration | Implemented; DB rehearsal pending runtime |
 | S1-005 | Auth and session adapter | Pending |
 | S1-006 | Workspace authorization service | Pending |
 | S1-007 | RLS and grants | Pending |
