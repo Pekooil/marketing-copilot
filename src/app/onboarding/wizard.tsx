@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from "react";
 
 import {
@@ -23,6 +24,7 @@ export function OnboardingWizard({
   initialState?: OnboardingState;
   saveAction?: SaveOnboardingAction;
 }) {
+  const router = useRouter();
   const [workspaceId, setWorkspaceId] = useState(initialState.workspaceId);
   const [versions, setVersions] = useState(initialState.versions);
   const [step, setStep] = useState(initialState.step);
@@ -84,6 +86,7 @@ export function OnboardingWizard({
       setDraft(result.state.draft);
       setStep(activate ? 3 : nextStep);
       setStatus(activate ? "Objective activated securely" : "Draft saved securely");
+      if (activate) router.push("/product-understanding" as Route);
       return true;
     }
 

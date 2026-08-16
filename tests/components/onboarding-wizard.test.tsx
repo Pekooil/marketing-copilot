@@ -4,8 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OnboardingWizard } from "@/app/onboarding/wizard";
 
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+
 describe("onboarding wizard", () => {
-  beforeEach(() => window.sessionStorage.clear());
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    pushMock.mockReset();
+  });
 
   it("exposes labeled controls and preserves input after validation errors", async () => {
     const user = userEvent.setup();
@@ -99,5 +105,42 @@ describe("onboarding wizard", () => {
     expect(screen.getByText("Draft saved securely")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Make the goal measurable." })).toBeInTheDocument();
     expect(window.sessionStorage).toHaveLength(0);
+  });
+
+  it("advances to product understanding after objective activation", async () => {
+    const user = userEvent.setup();
+    const initialState = {
+      workspaceId: "a0000000-0000-4000-8000-000000000001",
+      step: 3,
+      activated: false,
+      versions: { workspace: 1, profile: 1, objective: 1, constraints: 1 },
+      draft: {
+        workspaceName: "Acme workspace",
+        companyName: "Acme",
+        productSummary: "Helps founders understand activation.",
+        metricName: "Weekly activated accounts",
+        metricDefinition: "Accounts completing activation in a UTC week",
+        direction: "increase" as const,
+        targetValue: "20",
+        baselineState: "known" as const,
+        baselineValue: "0",
+        deadline: "2099-09-30",
+        targetSegment: "Self-serve founders",
+        rationale: "Activation is the current constraint.",
+        founderHours: "5",
+        cashBudget: "100",
+        currency: "USD",
+        riskTolerance: "low" as const,
+        prohibitedTactics: "unsolicited outreach",
+        brandRules: "no unsupported superlatives",
+      },
+    };
+    const saveAction = vi.fn().mockResolvedValue({ ok: true, state: { ...initialState, activated: true } });
+
+    render(<OnboardingWizard initialState={initialState} saveAction={saveAction} />);
+    await user.click(screen.getByRole("button", { name: "Activate objective" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/product-understanding"));
+    expect(saveAction).toHaveBeenCalledWith(expect.objectContaining({ step: 3, activate: true }));
   });
 });
