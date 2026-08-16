@@ -34,6 +34,10 @@ export const metricQualityState = appSchema.enum("metric_quality_state", ["curre
 export const funnelDefinitionStatus = appSchema.enum("funnel_definition_status", ["draft", "active"]);
 export const canonicalFunnelStage = appSchema.enum("canonical_funnel_stage", ["awareness", "acquisition", "conversion", "activation", "retention", "revenue", "referral"]);
 export const funnelMappingState = appSchema.enum("funnel_mapping_state", ["mapped", "unmapped"]);
+export const connectorProvider = appSchema.enum("connector_provider", ["posthog"]);
+export const connectorRegion = appSchema.enum("connector_region", ["us", "eu"]);
+export const connectorStatus = appSchema.enum("connector_status", ["pending", "healthy", "degraded", "error", "revoked"]);
+export const syncRunStatus = appSchema.enum("sync_run_status", ["running", "succeeded", "failed"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -257,13 +261,117 @@ export const manualImportBatches = appSchema.table(
   ],
 );
 
+export const connectorConnections = appSchema.table(
+  "connector_connection",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    provider: connectorProvider("provider").notNull(),
+    providerAccountRef: text("provider_account_ref").notNull(),
+    region: connectorRegion("region").notNull(),
+    displayName: text("display_name").notNull(),
+    status: connectorStatus("status").notNull().default("pending"),
+    scopes: jsonb("scopes").notNull().default(["endpoint:read"]),
+    authMethod: text("auth_method").notNull().default("oauth_cimd"),
+    lastHealthyAt: timestamp("last_healthy_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("connector_connection_account_unique").on(table.workspaceId, table.provider, table.providerAccountRef),
+    uniqueIndex("connector_one_live_provider_idx").on(table.workspaceId, table.provider).where(sql`${table.status} <> 'revoked'`),
+    index("connector_connection_workspace_idx").on(table.workspaceId, table.status),
+  ],
+);
+
+export const secretReferences = appSchema.table(
+  "secret_reference",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id").notNull().references(() => connectorConnections.id, { onDelete: "cascade" }),
+    vaultProvider: text("vault_provider").notNull(),
+    vaultKeyRef: text("vault_key_ref").notNull(),
+    credentialType: text("credential_type").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    rotatedAt: timestamp("rotated_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("secret_reference_connection_unique").on(table.connectionId)],
+);
+
+export const connectorMetricMappings = appSchema.table(
+  "connector_metric_mapping",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id").notNull().references(() => connectorConnections.id, { onDelete: "cascade" }),
+    metricDefinitionId: uuid("metric_definition_id").notNull().references(() => metricDefinitions.id, { onDelete: "cascade" }),
+    currentVersionId: uuid("current_version_id"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("connector_metric_mapping_unique").on(table.connectionId, table.metricDefinitionId),
+    index("connector_mapping_workspace_idx").on(table.workspaceId, table.connectionId),
+  ],
+);
+
+export const connectorMetricMappingVersions = appSchema.table(
+  "connector_metric_mapping_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    mappingId: uuid("mapping_id").notNull().references(() => connectorMetricMappings.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    endpointName: text("endpoint_name").notNull(),
+    endpointVersion: integer("endpoint_version").notNull(),
+    approvalState: metricApprovalState("approval_state").notNull().default("founder_approved"),
+    approvedBy: uuid("approved_by").notNull().references(() => userAccounts.id),
+    decisionRef: text("decision_ref").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("connector_mapping_version_unique").on(table.mappingId, table.version)],
+);
+
+export const syncRuns = appSchema.table(
+  "sync_run",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id").notNull().references(() => connectorConnections.id),
+    status: syncRunStatus("status").notNull().default("running"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestId: uuid("request_id").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    segmentKey: text("segment_key").notNull(),
+    attempt: integer("attempt").notNull().default(1),
+    metricCount: integer("metric_count").notNull(),
+    succeededCount: integer("succeeded_count").notNull().default(0),
+    errorClass: text("error_class"),
+    providerRequestIds: jsonb("provider_request_ids").notNull().default([]),
+    checkpoints: jsonb("checkpoints").notNull().default({}),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+  },
+  (table) => [
+    uniqueIndex("sync_run_identity_unique").on(table.workspaceId, table.idempotencyKey),
+    uniqueIndex("sync_run_request_unique").on(table.workspaceId, table.requestId),
+    index("sync_run_workspace_started_idx").on(table.workspaceId, table.startedAt),
+  ],
+);
+
 export const metricObservations = appSchema.table(
   "metric_observation",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     metricDefinitionId: uuid("metric_definition_id").notNull().references(() => metricDefinitions.id),
-    importBatchId: uuid("import_batch_id").notNull().references(() => manualImportBatches.id),
+    importBatchId: uuid("import_batch_id").references(() => manualImportBatches.id),
+    syncRunId: uuid("sync_run_id").references(() => syncRuns.id),
     sourceRecordId: uuid("source_record_id").notNull().references(() => sourceRecords.id),
     sourceRowNumber: integer("source_row_number").notNull(),
     rowKey: text("row_key").notNull(),
@@ -281,6 +389,7 @@ export const metricObservations = appSchema.table(
     uniqueIndex("metric_observation_row_unique").on(table.importBatchId, table.sourceRowNumber),
     uniqueIndex("metric_observation_identity_unique").on(table.workspaceId, table.metricDefinitionId, table.rowKey, table.sourceRecordId),
     index("metric_observation_scope_idx").on(table.workspaceId, table.metricDefinitionId, table.windowStart, table.windowEnd, table.segmentKey),
+    index("metric_observation_sync_run_idx").on(table.workspaceId, table.syncRunId),
   ],
 );
 
@@ -290,7 +399,8 @@ export const metricSnapshots = appSchema.table(
     id: uuid("id").primaryKey().defaultRandom(),
     workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     metricDefinitionId: uuid("metric_definition_id").notNull().references(() => metricDefinitions.id),
-    importBatchId: uuid("import_batch_id").notNull().references(() => manualImportBatches.id),
+    importBatchId: uuid("import_batch_id").references(() => manualImportBatches.id),
+    syncRunId: uuid("sync_run_id").references(() => syncRuns.id),
     windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
     windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
     segmentKey: text("segment_key").notNull(),
@@ -306,6 +416,7 @@ export const metricSnapshots = appSchema.table(
   (table) => [
     uniqueIndex("metric_snapshot_idempotency_unique").on(table.workspaceId, table.idempotencyKey),
     index("metric_snapshot_latest_idx").on(table.workspaceId, table.metricDefinitionId, table.createdAt),
+    index("metric_snapshot_sync_run_idx").on(table.workspaceId, table.syncRunId),
   ],
 );
 
