@@ -9,6 +9,7 @@ import { metricDefinitionKey } from "@/metrics/definition";
 import { CsvImportError, parseManualMetricsCsv } from "@/metrics/manual-import";
 import {
   mappedManualMetricRowSchema,
+  connectorMetricLineageSchema,
   metricsWorkspaceStateSchema,
   saveFunnelInputSchema,
   saveMetricDefinitionInputSchema,
@@ -25,12 +26,23 @@ const uploadEnvelopeSchema = z.object({ workspaceId: z.uuid(), requestId: z.uuid
 export async function loadMetricsWorkspaceState(workspaceId: string): Promise<MetricsWorkspaceState> {
   await requireIdentity();
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("get_metrics_workspace_state", { p_workspace_id: workspaceId });
-  if (error) {
-    logger.error({ event: "metrics.load", result: "failed", errorClass: error.code });
+  const [workspaceResult, lineageResult] = await Promise.all([
+    supabase.rpc("get_metrics_workspace_state", { p_workspace_id: workspaceId }),
+    supabase.rpc("get_connector_metric_lineage", { p_workspace_id: workspaceId }),
+  ]);
+  if (workspaceResult.error || lineageResult.error) {
+    logger.error({ event: "metrics.load", result: "failed", errorClass: workspaceResult.error?.code ?? lineageResult.error?.code });
     throw new Error("Metrics workspace could not be loaded.");
   }
-  return metricsWorkspaceStateSchema.parse(data);
+  const state = metricsWorkspaceStateSchema.parse(workspaceResult.data);
+  const lineageByMetric = new Map(connectorMetricLineageSchema.parse(lineageResult.data).map((lineage) => [lineage.metricDefinitionId, lineage]));
+  return metricsWorkspaceStateSchema.parse({
+    ...state,
+    snapshots: state.snapshots.map((snapshot) => {
+      const lineage = lineageByMetric.get(snapshot.metricDefinitionId);
+      return { ...snapshot, sourceLineage: lineage?.snapshotId === snapshot.id ? lineage : null };
+    }),
+  });
 }
 
 export async function saveMetricDefinition(rawInput: unknown): Promise<MetricsMutationResult> {

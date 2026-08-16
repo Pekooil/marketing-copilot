@@ -11,11 +11,13 @@ import type {
   SaveFunnelAction,
   SaveMetricDefinitionAction,
 } from "@/metrics/workspace-schema";
+import type { ConnectorWorkspaceState, DiscoverConnectorSourcesAction, RefreshConnectorAction, RevokeConnectorAction, SaveConnectorMappingAction, StartConnectionAction } from "@/connectors/workspace-schema";
 
 import { CsvImportPanel } from "./csv-import-panel";
 import { FunnelBuilder } from "./funnel-builder";
 import { FunnelReport } from "./funnel-report";
 import { MetricDefinitionPanel } from "./metric-definition-panel";
+import { ConnectorPanel } from "./connector-panel";
 
 export function MetricsWorkspace({
   initialState,
@@ -23,14 +25,17 @@ export function MetricsWorkspace({
   previewCsvAction,
   commitCsvAction,
   saveFunnelAction,
+  connector,
 }: {
   initialState: MetricsWorkspaceState;
   saveDefinitionAction: SaveMetricDefinitionAction;
   previewCsvAction: PreviewCsvAction;
   commitCsvAction: CommitCsvAction;
   saveFunnelAction: SaveFunnelAction;
+  connector?: { initialState: ConnectorWorkspaceState; startAction: StartConnectionAction; discoverAction: DiscoverConnectorSourcesAction; saveMappingAction: SaveConnectorMappingAction; refreshAction: RefreshConnectorAction; revokeAction: RevokeConnectorAction };
 }) {
   const [state, setState] = useState(initialState);
+  const [connectorState, setConnectorState] = useState(connector?.initialState ?? null);
   const [status, setStatus] = useState(
     state.imports.length > 0 ? "Manual metric data loaded" : "No metric data imported yet",
   );
@@ -60,6 +65,7 @@ export function MetricsWorkspace({
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="space-y-8">
+          {connector && connectorState ? <ConnectorPanel connectorState={connectorState} metricsState={state} startAction={connector.startAction} discoverAction={connector.discoverAction} saveMappingAction={connector.saveMappingAction} refreshAction={connector.refreshAction} revokeAction={connector.revokeAction} onConnectorState={setConnectorState} onMetricsState={update} /> : null}
           <MetricDefinitionPanel state={state} action={saveDefinitionAction} onSaved={update} />
           <CsvImportPanel state={state} previewAction={previewCsvAction} commitAction={commitCsvAction} onImported={update} />
         </div>

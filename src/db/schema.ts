@@ -279,7 +279,7 @@ export const connectorConnections = appSchema.table(
     ...timestamps,
   },
   (table) => [
-    uniqueIndex("connector_connection_account_unique").on(table.workspaceId, table.provider, table.providerAccountRef),
+    uniqueIndex("connector_connection_live_account_unique").on(table.workspaceId, table.provider, table.providerAccountRef).where(sql`${table.status} <> 'revoked'`),
     uniqueIndex("connector_one_live_provider_idx").on(table.workspaceId, table.provider).where(sql`${table.status} <> 'revoked'`),
     index("connector_connection_workspace_idx").on(table.workspaceId, table.status),
   ],

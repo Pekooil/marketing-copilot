@@ -32,8 +32,30 @@ export const metricSnapshotSummarySchema = z.object({
   qualityScore: z.coerce.number().min(0).max(1),
   freshAsOf: z.iso.datetime(),
   evidenceIds: z.array(z.uuid()).min(1),
-  importBatchId: z.uuid(),
+  importBatchId: z.uuid().nullable(),
+  syncRunId: z.uuid().nullable().optional(),
+  sourceLineage: z.object({
+    sourceId: z.uuid(),
+    endpointName: z.string().min(1).max(120),
+    endpointVersion: z.number().int().positive(),
+    providerObjectRef: z.string().startsWith("posthog_endpoint:").max(500),
+    observedAt: z.iso.datetime(),
+    providerRequestId: z.string().min(1).max(200),
+    checkpoint: z.string().min(1).max(500),
+  }).nullable().optional(),
 });
+
+export const connectorMetricLineageSchema = z.array(z.object({
+  snapshotId: z.uuid(),
+  metricDefinitionId: z.uuid(),
+  sourceId: z.uuid(),
+  endpointName: z.string().min(1).max(120),
+  endpointVersion: z.coerce.number().int().positive(),
+  providerObjectRef: z.string().startsWith("posthog_endpoint:").max(500),
+  observedAt: z.iso.datetime(),
+  providerRequestId: z.string().min(1).max(200),
+  checkpoint: z.string().min(1).max(500),
+}));
 
 export const savedFunnelSchema = z.object({
   id: z.uuid(),

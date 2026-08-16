@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { connectorSyncKey } from "@/connectors/idempotency";
 import { ConnectorError } from "@/connectors/errors";
 import { PosthogEndpointAdapter } from "@/connectors/posthog/endpoint-adapter";
-import { createPosthogAuthorizationRequest, discoverPosthogOAuthServer } from "@/connectors/posthog/oauth";
+import { createPosthogAuthorizationRequest, discoverPosthogOAuthServer, refreshPosthogOAuthToken } from "@/connectors/posthog/oauth";
 
 const connection = { provider: "posthog" as const, region: "us" as const, projectId: "12345", displayName: "Production analytics" };
 const credentials = { accessToken: "pha_test_token_123456" };
@@ -23,6 +23,25 @@ describe("PostHog read-only connector", () => {
     expect(url.searchParams.get("scope")).toBe("endpoint:read");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(request.codeVerifier).not.toBe(request.state);
+  });
+
+  it("rejects lookalike OAuth hosts", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ authorization_endpoint: "https://oauth.posthog.com.evil.example/authorize", token_endpoint: "https://oauth.posthog.com/token", scopes_supported: ["endpoint:read"] }));
+    await expect(discoverPosthogOAuthServer(fetcher)).rejects.toMatchObject({ code: "POSTHOG_OAUTH_METADATA_UNSAFE" });
+  });
+
+  it("rotates an expired OAuth token with only the read-only scope", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ access_token: "pha_rotated_token_123", refresh_token: "phr_rotated_token_123", expires_in: 3600, scope: "endpoint:read" }));
+    const tokens = await refreshPosthogOAuthToken({ tokenEndpoint: "https://oauth.posthog.com/oauth/token", clientId: "https://copilot.example/oauth-client", refreshToken: "phr_expired_token_123" }, fetcher);
+    expect(tokens).toMatchObject({ accessToken: "pha_rotated_token_123", refreshToken: "phr_rotated_token_123" });
+    expect(String(fetcher.mock.calls[0][1]?.body)).toContain("grant_type=refresh_token");
+    expect(String(fetcher.mock.calls[0][1]?.body)).not.toContain("endpoint%3Awrite");
+  });
+
+  it("retains the existing refresh token when PostHog returns only a new access token", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ access_token: "pha_rotated_token_456", expires_in: 3600, scope: "endpoint:read" }));
+    const tokens = await refreshPosthogOAuthToken({ tokenEndpoint: "https://oauth.posthog.com/oauth/token", clientId: "https://copilot.example/oauth-client", refreshToken: "phr_existing_token_123" }, fetcher);
+    expect(tokens.refreshToken).toBe("phr_existing_token_123");
   });
 
   it("discovers only bounded endpoint metadata", async () => {
