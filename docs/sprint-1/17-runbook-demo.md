@@ -32,7 +32,7 @@ Absent, expired, or revoked authorization fails before any trace query. Returned
 
 - No Docker-compatible local Supabase runtime or test database is provisioned, so forward/down/forward and raw authenticated RLS execution remain unrun.
 - Production Supabase/Vercel credentials and exact callback allowlists are intentionally deferred.
-- Onboarding UI save/resume is browser-session scoped until the server persistence adapter is connected to the versioned repositories.
+- Onboarding server persistence is implemented; staging migration and authenticated save/resume evidence remain pending.
 - Analytics has a provider-neutral sink only; no production analytics vendor or durable outbox is configured.
 - Invitations, URL analysis, external connectors, AI generation, and all Class D–F execution remain out of scope.
 - Real founder field testing is deferred by founder decision; Sprint 0 evidence gate remains overridden, not passed.

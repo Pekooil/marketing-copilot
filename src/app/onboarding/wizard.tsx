@@ -2,69 +2,44 @@
 
 import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from "react";
 
-import { validateObjectiveForActivation, type ObjectiveDraft } from "@/domain/objective";
-import { resourceConstraintsSchema } from "@/domain/resource-constraints";
+import {
+  emptyOnboardingDraft,
+  emptyOnboardingState,
+  validateOnboardingStep,
+  type OnboardingDraft,
+  type OnboardingState,
+  type SaveOnboardingAction,
+} from "@/onboarding/schema";
 
 const storageKey = "marketing-copilot:onboarding-draft:v1";
 const steps = ["Company", "Objective", "Resources", "Review"] as const;
 
-interface Draft {
-  workspaceName: string;
-  companyName: string;
-  productSummary: string;
-  metricName: string;
-  metricDefinition: string;
-  direction: "increase" | "decrease";
-  targetValue: string;
-  baselineState: "known" | "unknown";
-  baselineValue: string;
-  deadline: string;
-  targetSegment: string;
-  rationale: string;
-  founderHours: string;
-  cashBudget: string;
-  currency: string;
-  riskTolerance: "low" | "medium" | "high";
-  prohibitedTactics: string;
-  brandRules: string;
-}
-
-const emptyDraft: Draft = {
-  workspaceName: "",
-  companyName: "",
-  productSummary: "",
-  metricName: "",
-  metricDefinition: "",
-  direction: "increase",
-  targetValue: "",
-  baselineState: "unknown",
-  baselineValue: "",
-  deadline: "",
-  targetSegment: "",
-  rationale: "",
-  founderHours: "5",
-  cashBudget: "100",
-  currency: "USD",
-  riskTolerance: "low",
-  prohibitedTactics: "",
-  brandRules: "",
-};
-
-export function OnboardingWizard() {
-  const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState(emptyDraft);
+export function OnboardingWizard({
+  initialState = emptyOnboardingState,
+  saveAction,
+}: {
+  initialState?: OnboardingState;
+  saveAction?: SaveOnboardingAction;
+}) {
+  const [workspaceId, setWorkspaceId] = useState(initialState.workspaceId);
+  const [step, setStep] = useState(initialState.step);
+  const [draft, setDraft] = useState(initialState.draft);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState("Draft not saved yet");
+  const [status, setStatus] = useState(
+    initialState.workspaceId ? "Draft resumed securely" : "Draft not saved yet",
+  );
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (saveAction) return;
     const saved = window.sessionStorage.getItem(storageKey);
     if (!saved) return;
     let active = true;
     try {
-      const parsed = JSON.parse(saved) as { draft: Draft; step: number };
+      const parsed = JSON.parse(saved) as { draft: OnboardingDraft; step: number };
       queueMicrotask(() => {
         if (!active) return;
-        setDraft({ ...emptyDraft, ...parsed.draft });
+        setDraft({ ...emptyOnboardingDraft, ...parsed.draft });
         setStep(Math.min(Math.max(parsed.step, 0), steps.length - 1));
         setStatus("Draft resumed from this browser session");
       });
@@ -74,14 +49,39 @@ export function OnboardingWizard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [saveAction]);
 
-  function update(name: keyof Draft, value: string) {
+  function update(name: keyof OnboardingDraft, value: string) {
     setDraft((current) => ({ ...current, [name]: value }));
     setErrors((current) => ({ ...current, [name]: "" }));
   }
 
-  function save(nextStep = step) {
+  async function save(nextStep = step, activate = false) {
+    if (saveAction) {
+      setSaving(true);
+      setStatus("Saving securely…");
+      const requestId = crypto.randomUUID();
+      const result = await saveAction({
+        workspaceId,
+        step,
+        activate,
+        requestId,
+        idempotencyKey: `onboarding-${requestId}`,
+        draft,
+      });
+      setSaving(false);
+      if (!result.ok) {
+        if (result.fieldErrors) setErrors(result.fieldErrors);
+        setStatus(result.message);
+        return false;
+      }
+      setWorkspaceId(result.state.workspaceId);
+      setDraft(result.state.draft);
+      setStep(activate ? 3 : nextStep);
+      setStatus(activate ? "Objective activated securely" : "Draft saved securely");
+      return true;
+    }
+
     try {
       window.sessionStorage.setItem(storageKey, JSON.stringify({ draft, step: nextStep }));
       setStatus("Draft saved in this browser session");
@@ -92,14 +92,14 @@ export function OnboardingWizard() {
     }
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextErrors = validateStep(step, draft);
+    const nextErrors = validateOnboardingStep(step, draft);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
     const nextStep = Math.min(step + 1, steps.length - 1);
-    if (!save(nextStep)) return;
-    setStep(nextStep);
+    if (!(await save(nextStep))) return;
+    if (!saveAction) setStep(nextStep);
     queueMicrotask(() => document.querySelector<HTMLElement>("#onboarding-heading")?.focus());
   }
 
@@ -138,13 +138,13 @@ export function OnboardingWizard() {
               {step === 1 ? <ObjectiveStep draft={draft} errors={errors} update={update} /> : null}
               {step === 2 ? <ResourcesStep draft={draft} errors={errors} update={update} /> : null}
               <div className="flex flex-wrap items-center gap-3 border-t border-[var(--line)] pt-6">
-                <button type="submit" className="min-h-11 cursor-pointer rounded-lg bg-[#d4af37] px-5 text-sm font-semibold text-[#171717] transition-opacity duration-200 hover:opacity-85 focus-visible:outline-2">Save and continue</button>
-                <button type="button" onClick={() => save()} className="min-h-11 cursor-pointer rounded-lg border border-[var(--ink)] px-5 text-sm font-semibold transition-colors duration-200 hover:bg-[var(--surface)] focus-visible:outline-2">Save for later</button>
+                <button type="submit" disabled={saving} className="min-h-11 cursor-pointer rounded-lg bg-[#d4af37] px-5 text-sm font-semibold text-[#171717] transition-opacity duration-200 hover:opacity-85 focus-visible:outline-2 disabled:cursor-wait disabled:opacity-60">{saving ? "Saving…" : "Save and continue"}</button>
+                <button type="button" disabled={saving} onClick={() => void save()} className="min-h-11 cursor-pointer rounded-lg border border-[var(--ink)] px-5 text-sm font-semibold transition-colors duration-200 hover:bg-[var(--surface)] focus-visible:outline-2 disabled:cursor-wait disabled:opacity-60">Save for later</button>
                 {step > 0 ? <button type="button" onClick={() => setStep((current) => current - 1)} className="min-h-11 cursor-pointer px-3 text-sm font-semibold text-[var(--muted)] hover:text-[var(--ink)] focus-visible:outline-2">Back</button> : null}
               </div>
             </form>
           ) : (
-            <Review draft={draft} onBack={() => setStep(2)} onActivate={() => { save(3); setStatus("Setup ready for server activation"); }} />
+            <Review draft={draft} saving={saving} onBack={() => setStep(2)} onActivate={() => void save(3, true)} />
           )}
         </section>
       </div>
@@ -152,9 +152,9 @@ export function OnboardingWizard() {
   );
 }
 
-type StepProps = { draft: Draft; errors: Record<string, string>; update: (name: keyof Draft, value: string) => void };
+type StepProps = { draft: OnboardingDraft; errors: Record<string, string>; update: (name: keyof OnboardingDraft, value: string) => void };
 
-function Field({ label, name, value, onChange, error, type = "text", hint, ...input }: { label: string; name: keyof Draft; value: string; onChange: (name: keyof Draft, value: string) => void; error?: string; type?: string; hint?: string } & Omit<InputHTMLAttributes<HTMLInputElement>, "name" | "value" | "onChange" | "type">) {
+function Field({ label, name, value, onChange, error, type = "text", hint, ...input }: { label: string; name: keyof OnboardingDraft; value: string; onChange: (name: keyof OnboardingDraft, value: string) => void; error?: string; type?: string; hint?: string } & Omit<InputHTMLAttributes<HTMLInputElement>, "name" | "value" | "onChange" | "type">) {
   const id = `field-${name}`;
   return <label htmlFor={id} className="block text-sm font-medium">{label}<input {...input} id={id} name={name} value={value} type={type} onChange={(event) => onChange(name, event.target.value)} aria-invalid={Boolean(error)} aria-describedby={`${id}-hint ${id}-error`} className="mt-2 min-h-12 w-full rounded-lg border border-[var(--line)] bg-white px-4 text-base transition-colors duration-200 focus:border-[var(--ink)] focus:outline-2" />{hint ? <span id={`${id}-hint`} className="mt-2 block text-xs leading-5 text-[var(--muted)]">{hint}</span> : null}{error ? <span id={`${id}-error`} role="alert" className="mt-2 block text-sm text-[#9b2c20]">{error}</span> : null}</label>;
 }
@@ -171,29 +171,11 @@ function ResourcesStep({ draft, errors, update }: StepProps) {
   return <><div className="grid gap-5 sm:grid-cols-2"><Field label="Founder hours per week" name="founderHours" value={draft.founderHours} onChange={update} error={errors.founderHours} type="number" min="0" step="0.25" /><Field label="Cash budget" name="cashBudget" value={draft.cashBudget} onChange={update} error={errors.cashBudget} type="number" min="0" step="0.01" /></div><Field label="Currency" name="currency" value={draft.currency} onChange={update} error={errors.currency} maxLength={3} /><label className="block text-sm font-medium">Risk tolerance<select value={draft.riskTolerance} onChange={(event) => update("riskTolerance", event.target.value)} className="mt-2 min-h-12 w-full cursor-pointer rounded-lg border border-[var(--line)] bg-white px-4 text-base"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><Field label="Prohibited tactics" name="prohibitedTactics" value={draft.prohibitedTactics} onChange={update} error={errors.prohibitedTactics} hint="Comma-separated. Sending, publishing, spending, deployment, and sensitive actions remain blocked globally." /><Field label="Brand and claim rules" name="brandRules" value={draft.brandRules} onChange={update} error={errors.brandRules} hint="Comma-separated rules such as ‘No unsupported superlatives’." /></>;
 }
 
-function Review({ draft, onBack, onActivate }: { draft: Draft; onBack: () => void; onActivate: () => void }) {
-  return <div className="mt-9 space-y-5"><ReviewRow label="Company" value={`${draft.companyName} · ${draft.productSummary}`} /><ReviewRow label="Objective" value={`${draft.direction} ${draft.metricName} to ${draft.targetValue} by ${draft.deadline}`} /><ReviewRow label="Operating envelope" value={`${draft.founderHours} hours/week · ${draft.currency} ${draft.cashBudget} · ${draft.riskTolerance} risk`} /><div className="rounded-xl border border-[#e2d08b] bg-[#fff9df] p-4 text-sm leading-6"><strong>Safety boundary:</strong> This setup cannot authorize external sending, publishing, spending, deployment, account changes, or irreversible actions.</div><div className="flex flex-wrap gap-3 border-t border-[var(--line)] pt-6"><button type="button" onClick={onActivate} className="min-h-11 cursor-pointer rounded-lg bg-[#d4af37] px-5 text-sm font-semibold text-[#171717] transition-opacity duration-200 hover:opacity-85 focus-visible:outline-2">Activate objective</button><button type="button" onClick={onBack} className="min-h-11 cursor-pointer rounded-lg border border-[var(--ink)] px-5 text-sm font-semibold hover:bg-[var(--surface)] focus-visible:outline-2">Back</button></div></div>;
+function Review({ draft, saving, onBack, onActivate }: { draft: OnboardingDraft; saving: boolean; onBack: () => void; onActivate: () => void }) {
+  return <div className="mt-9 space-y-5"><ReviewRow label="Company" value={`${draft.companyName} · ${draft.productSummary}`} /><ReviewRow label="Objective" value={`${draft.direction} ${draft.metricName} to ${draft.targetValue} by ${draft.deadline}`} /><ReviewRow label="Operating envelope" value={`${draft.founderHours} hours/week · ${draft.currency} ${draft.cashBudget} · ${draft.riskTolerance} risk`} /><div className="rounded-xl border border-[#e2d08b] bg-[#fff9df] p-4 text-sm leading-6"><strong>Safety boundary:</strong> This setup cannot authorize external sending, publishing, spending, deployment, account changes, or irreversible actions.</div><div className="flex flex-wrap gap-3 border-t border-[var(--line)] pt-6"><button type="button" disabled={saving} onClick={onActivate} className="min-h-11 cursor-pointer rounded-lg bg-[#d4af37] px-5 text-sm font-semibold text-[#171717] transition-opacity duration-200 hover:opacity-85 focus-visible:outline-2 disabled:cursor-wait disabled:opacity-60">{saving ? "Activating…" : "Activate objective"}</button><button type="button" disabled={saving} onClick={onBack} className="min-h-11 cursor-pointer rounded-lg border border-[var(--ink)] px-5 text-sm font-semibold hover:bg-[var(--surface)] focus-visible:outline-2">Back</button></div></div>;
 }
 
 function ReviewRow({ label, value }: { label: string; value: string }) { return <div className="border-b border-[var(--line)] pb-5"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{label}</p><p className="mt-2 leading-7">{value}</p></div>; }
 function CheckIcon() { return <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 10 4 4 8-8" /></svg>; }
 function headingFor(step: number) { return ["Name the workspace and company.", "Make the goal measurable.", "Set a realistic operating envelope.", "Review before activation."][step]; }
 function descriptionFor(step: number) { return ["Start with founder-provided facts. Nothing here is inferred from a website.", "A precise metric and deadline let the copilot distinguish progress from activity.", "These limits shape every recommendation and never override the global safety policy.", "Confirm the context the copilot will use. You can return and edit any step."][step]; }
-
-function validateStep(step: number, draft: Draft) {
-  if (step === 0) {
-    return Object.fromEntries(Object.entries({ workspaceName: draft.workspaceName.trim() ? "" : "Enter a workspace name.", companyName: draft.companyName.trim() ? "" : "Enter a company name.", productSummary: draft.productSummary.trim() ? "" : "Describe the product briefly." }).filter(([, value]) => value));
-  }
-  if (step === 1) {
-    const objective: ObjectiveDraft = { metricName: draft.metricName, metricDefinition: draft.metricDefinition, direction: draft.direction, targetValue: draft.targetValue === "" ? undefined : Number(draft.targetValue), baselineState: draft.baselineState, baselineValue: draft.baselineState === "unknown" ? null : draft.baselineValue === "" ? null : Number(draft.baselineValue), deadline: draft.deadline, targetSegment: draft.targetSegment, rationale: draft.rationale };
-    try { validateObjectiveForActivation(objective); return {}; } catch (error) { return "fieldErrors" in (error as object) ? (error as { fieldErrors: Record<string, string> }).fieldErrors : { form: "Review the objective." }; }
-  }
-  const tactics = splitList(draft.prohibitedTactics);
-  const rules = splitList(draft.brandRules);
-  const result = resourceConstraintsSchema.safeParse({ founderMinutesPerWeek: Number(draft.founderHours) * 60, cashBudgetMinor: Math.round(Number(draft.cashBudget) * 100), currency: draft.currency.toUpperCase(), riskTolerance: draft.riskTolerance, prohibitedTactics: tactics, brandRules: rules, audienceLimits: [], geographyLimits: [], approvalPreferences: { requirePreparationApproval: true, requestedActionClasses: ["C"] } });
-  if (result.success) return {};
-  const flattened = result.error.flatten().fieldErrors;
-  return { founderHours: flattened.founderMinutesPerWeek?.[0] ?? "", cashBudget: flattened.cashBudgetMinor?.[0] ?? "", currency: flattened.currency?.[0] ?? "", prohibitedTactics: flattened.prohibitedTactics?.[0] ?? "", brandRules: flattened.brandRules?.[0] ?? "" };
-}
-
-function splitList(value: string) { return value.split(",").map((item) => item.trim()).filter(Boolean); }

@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OnboardingWizard } from "@/app/onboarding/wizard";
 
@@ -43,5 +43,59 @@ describe("onboarding wizard", () => {
     const baseline = await screen.findByLabelText(/Baseline value/);
     await user.type(baseline, "0");
     expect(baseline).toHaveValue(0);
+  });
+
+  it("persists through the authenticated server adapter when provided", async () => {
+    const user = userEvent.setup();
+    const saveAction = vi.fn().mockResolvedValue({
+      ok: true,
+      state: {
+        workspaceId: "a0000000-0000-4000-8000-000000000001",
+        step: 1,
+        activated: false,
+        draft: {
+          workspaceName: "Acme workspace",
+          companyName: "Acme",
+          productSummary: "Helps founders understand activation.",
+          metricName: "",
+          metricDefinition: "",
+          direction: "increase",
+          targetValue: "",
+          baselineState: "unknown",
+          baselineValue: "",
+          deadline: "",
+          targetSegment: "",
+          rationale: "",
+          founderHours: "5",
+          cashBudget: "100",
+          currency: "USD",
+          riskTolerance: "low",
+          prohibitedTactics: "",
+          brandRules: "",
+        },
+      },
+    });
+
+    render(<OnboardingWizard saveAction={saveAction} />);
+    await user.type(screen.getByLabelText(/Workspace name/), "Acme workspace");
+    await user.type(screen.getByLabelText(/Company name/), "Acme");
+    await user.type(
+      screen.getByLabelText(/What does the product help customers do/),
+      "Helps founders understand activation.",
+    );
+    await user.click(screen.getByRole("button", { name: "Save and continue" }));
+
+    await waitFor(() => expect(saveAction).toHaveBeenCalledOnce());
+    expect(saveAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: null,
+        step: 0,
+        activate: false,
+        idempotencyKey: expect.stringMatching(/^onboarding-/),
+      }),
+    );
+    expect(screen.getByText("Draft saved securely")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Make the goal measurable." })).toBeInTheDocument();
+    expect(window.sessionStorage).toHaveLength(0);
   });
 });
