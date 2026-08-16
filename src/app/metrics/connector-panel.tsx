@@ -62,6 +62,7 @@ export function ConnectorPanel({ connectorState, metricsState, startAction, disc
       const result = await refreshAction({ workspaceId: connectorState.workspaceId, connectionId: activeConnection.id, range: { windowStart: `${start}T00:00:00.000Z`, windowEnd: `${end}T00:00:00.000Z`, segment }, requestId });
       if (!result.ok) {
         if (result.connectorState) onConnectorState(result.connectorState);
+        if (result.metricsState) onMetricsState(result.metricsState, result.message);
         return setMessage(result.message);
       }
       onConnectorState(result.connectorState);

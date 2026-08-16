@@ -79,4 +79,20 @@ describe("PostHog connector panel", () => {
     expect(refreshAction).toHaveBeenCalledWith(expect.objectContaining({ range: { windowStart: "2026-08-01T00:00:00.000Z", windowEnd: "2026-08-08T00:00:00.000Z", segment: "Self-serve founders" } }));
     expect(onMetricsState).toHaveBeenCalledWith(metricsState, "1 aggregate refreshed");
   });
+
+  it("applies stale metric state immediately when a provider refresh fails", async () => {
+    const user = userEvent.setup();
+    const mappedState: ConnectorWorkspaceState = { ...healthyConnectorState, mappings: [{ id: "a0000000-0000-4000-8000-000000000005", versionId: "a0000000-0000-4000-8000-000000000006", version: 1, connectionId, metricDefinitionId: metricId, endpointName: "weekly-activation", endpointVersion: 3, approvalState: "founder_approved", createdAt: "2026-08-16T12:00:00.000Z" }] };
+    const degradedState: ConnectorWorkspaceState = { ...mappedState, connection: { ...mappedState.connection!, status: "degraded", lastErrorCode: "POSTHOG_RATE_LIMITED" } };
+    const staleMetrics: MetricsWorkspaceState = { ...metricsState, snapshots: [{ id: "a0000000-0000-4000-8000-000000000007", metricDefinitionId: metricId, windowStart: "2026-08-01T00:00:00.000Z", windowEnd: "2026-08-08T00:00:00.000Z", segment: "Self-serve founders", value: 25, qualityState: "stale", qualityScore: 0.5, freshAsOf: "2026-08-08T01:00:00.000Z", evidenceIds: ["a0000000-0000-4000-8000-000000000008"], importBatchId: null, syncRunId: "a0000000-0000-4000-8000-000000000009" }] };
+    const refreshAction = vi.fn().mockResolvedValue({ ok: false, connectorState: degradedState, metricsState: staleMetrics, message: "PostHog is rate limiting refreshes." });
+    const onConnectorState = vi.fn();
+    const onMetricsState = vi.fn();
+    render(<ConnectorPanel {...baseProps} connectorState={mappedState} refreshAction={refreshAction} onConnectorState={onConnectorState} onMetricsState={onMetricsState} />);
+    await user.type(screen.getByLabelText("Window start"), "2026-08-01");
+    await user.type(screen.getByLabelText("Window end"), "2026-08-08");
+    await user.click(screen.getByRole("button", { name: "Refresh 1 mapped metrics" }));
+    await waitFor(() => expect(onMetricsState).toHaveBeenCalledWith(staleMetrics, "PostHog is rate limiting refreshes."));
+    expect(onConnectorState).toHaveBeenCalledWith(degradedState);
+  });
 });

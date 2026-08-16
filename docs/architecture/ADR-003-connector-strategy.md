@@ -1,8 +1,8 @@
 # ADR-003: read-only connector strategy
 
-**Status:** Proposed with a blocking data-plane validation  
+**Status:** Accepted for PostHog Cloud aggregate Endpoints
 **Decision owner:** Engineering lead and product owner  
-**Review gate:** Phase 0 platform-prevalence result plus PostHog technical spike
+**Review gate:** Revisit after the Sprint 4 founder test-project demo and first private-beta usage
 
 ## Context
 
@@ -12,30 +12,29 @@ V1 guarantees manual/CSV metrics and proposes PostHog as the first live analytic
 
 Create a provider-neutral `ConnectorAdapter` contract and implement only manual/CSV plus PostHog in V1. PostHog authentication uses OAuth 2.0 with the region-agnostic endpoint and Client ID Metadata Document, minimal read scopes, short-lived access tokens, encrypted refresh-token references, and explicit revocation.
 
-The PostHog data-plane method remains **unaccepted** until a Phase 0 spike confirms a provider-supported path for scheduled funnel aggregates. Do not build a recurring `/query` export connector based on assumption.
+The accepted PostHog data plane is founder-created aggregate Endpoints, executed only on an explicit bounded refresh. Each founder-approved metric mapping pins an Endpoint version. Recurring `/query`, arbitrary HogQL, raw events, persons, and background schedules are forbidden.
 
 Current PostHog documentation states:
 
 - OAuth is the intended authentication for apps other PostHog users connect, with scoped access and US/EU routing: [OAuth integration](https://posthog.com/docs/api/oauth).
 - `/query` supports ad-hoc and embedded analytics, but third-party connectors must not use it as a recurring export path: [API queries](https://posthog.com/docs/api/queries).
-- Project secret keys are still beta and currently have limited supported scopes: [project secret API keys](https://posthog.com/docs/api/project-secret-api-keys).
+- Endpoints expose versioned, optionally materialized aggregate results through the provider-supported `endpoint:read` scope: [Endpoints API](https://posthog.com/docs/api/endpoints).
 
-## Candidate data-plane paths to validate
+## Rejected alternatives
 
-1. PostHog-approved bounded aggregate queries for this product’s low-frequency, user-visible analytics use case.
-2. PostHog Endpoints or materialized queries that expose approved aggregates.
-3. Batch Exports into ephemeral processing, with raw rows discarded after producing canonical aggregates and lineage.
-4. Founder-created saved insights queried through a supported read endpoint.
-
-Select the least-privilege option that works for US Cloud, EU Cloud, and the supported self-hosted policy. If none is viable for the beachhead, keep manual/CSV as V1 and re-rank the first connector after Phase 0.
+- Recurring `/query`: explicitly unsuitable for third-party recurring export use.
+- Batch Exports: unnecessarily exposes raw rows for the current aggregate use case.
+- Saved insights: weaker output/version contract than Endpoints for founder-approved mappings.
+- Project secret keys: not the third-party delegated authorization model.
+- Self-hosted PostHog: deferred because the accepted OAuth/CIMD and regional-host contract currently targets US and EU Cloud.
 
 ## Adapter contract
 
 Each adapter must provide:
 
-- `authorize`, `refresh`, `revoke`, and `healthCheck`;
+- OAuth authorization/refresh/revocation lifecycle outside the data adapter, plus adapter `healthCheck`;
 - `discoverSources` returning metadata only;
-- `proposeMappings` without silently accepting them;
+- metadata-only discovery with mappings explicitly approved by the founder;
 - `fetchMetricSnapshot(definition, range, segment, checkpoint)` returning canonical aggregates, quality, lineage, provider request IDs, and next checkpoint;
 - stable idempotency key construction;
 - provider-specific rate-limit and retry classification;
@@ -51,15 +50,14 @@ Model-facing code cannot submit arbitrary SQL, URLs, event properties, or provid
 - Source disagreement creates `conflicted`; connection failure creates `stale`; neither becomes zero.
 - Backfills are explicit, range-bounded, restartable, and audited.
 
-## Validation before acceptance
+## Acceptance evidence
 
-1. Interview 8–12 founders and record PostHog, GA4, Mixpanel, and no-analytics prevalence.
-2. Obtain written or documented confirmation of a supported recurring aggregate path.
-3. Verify minimal OAuth scopes, refresh/revocation, region routing, rate limits, and pagination.
-4. Run fixture tests for duplicate pages, partial failure, schema changes, expired credentials, and remapping.
-5. Prove no raw identifying analytics property reaches persisted storage or model context in the default path.
+1. Official PostHog documentation provides OAuth/CIMD, scope ceilings, short-lived access tokens, refresh tokens, and region-agnostic US/EU routing.
+2. Official Endpoints APIs provide listing/execution, pinned versions, materialized execution, columns, pagination state, and execution identifiers with `endpoint:read`.
+3. The adapter accepts exactly one bounded aggregate row and rejects pagination, version drift, scope drift, invalid columns, and raw/query paths.
+4. Token material is held only by the managed vault; the application database stores opaque references and rejects token prefixes.
+5. Automated evaluation, browser, migration, isolation, and raw-database gates cover replay, stale failure, recovery, lineage, and tenant denial. Live database evidence remains a deployment gate.
 
 ## Rollback
 
 Disable the provider adapter by feature flag, mark impacted metrics stale, preserve manual data, revoke stored credentials, and recompute only after remapping. The canonical metric/funnel schema remains provider-independent.
-

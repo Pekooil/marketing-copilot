@@ -22,7 +22,12 @@ export const analyticsEventSchema = z.discriminatedUnion("name", [
   eventBase.extend({ name: z.literal("manual_metrics_previewed"), properties: z.object({ outcome: z.enum(["ready", "issues", "rejected"]), rowCountBucket: z.enum(["one", "two_to_ten", "eleven_to_one_hundred", "over_one_hundred"]), issueCountBucket: z.enum(["none", "one", "two_to_ten", "over_ten"]) }).strict() }),
   eventBase.extend({ name: z.literal("manual_metrics_imported"), properties: z.object({ rowCountBucket: z.enum(["one", "two_to_ten", "eleven_to_one_hundred", "over_one_hundred"]), qualityStates: z.array(z.enum(["current", "stale", "missing", "conflicted", "invalid", "unknown"])).min(1).max(6) }).strict() }),
   eventBase.extend({ name: z.literal("funnel_saved"), properties: z.object({ version: z.enum(["first", "revision"]), includedStageCount: z.number().int().min(2).max(7) }).strict() }),
-  eventBase.extend({ name: z.literal("safe_error"), properties: z.object({ area: z.enum(["auth", "onboarding", "mutation", "product_understanding", "metrics"]), errorClass: z.string().regex(/^[A-Z0-9_]{2,80}$/) }).strict() }),
+  eventBase.extend({ name: z.literal("connector_authorization_completed"), properties: z.object({ provider: z.literal("posthog"), region: z.enum(["us", "eu"]), outcome: z.enum(["connected", "denied", "failed"]) }).strict() }),
+  eventBase.extend({ name: z.literal("connector_mapping_saved"), properties: z.object({ provider: z.literal("posthog"), version: z.enum(["first", "revision"]), materialized: z.boolean() }).strict() }),
+  eventBase.extend({ name: z.literal("connector_sync_completed"), properties: z.object({ provider: z.literal("posthog"), outcome: z.enum(["succeeded", "recovered"]), metricCountBucket: z.enum(["one", "two_to_five", "six_to_twenty", "over_twenty"]), qualityStates: z.array(z.enum(["current", "stale", "missing", "conflicted", "invalid", "unknown"])).min(1).max(6) }).strict() }),
+  eventBase.extend({ name: z.literal("connector_sync_failed"), properties: z.object({ provider: z.literal("posthog"), connectionState: z.enum(["degraded", "error"]), errorClass: z.string().regex(/^[A-Z0-9_]{2,80}$/) }).strict() }),
+  eventBase.extend({ name: z.literal("connector_revoked"), properties: z.object({ provider: z.literal("posthog") }).strict() }),
+  eventBase.extend({ name: z.literal("safe_error"), properties: z.object({ area: z.enum(["auth", "onboarding", "mutation", "product_understanding", "metrics", "connectors"]), errorClass: z.string().regex(/^[A-Z0-9_]{2,80}$/) }).strict() }),
 ]);
 
 export type AnalyticsEvent = z.infer<typeof analyticsEventSchema>;

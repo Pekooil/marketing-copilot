@@ -430,6 +430,138 @@ try {
   assert(metricsState.funnel?.stages.filter((stage) => stage.included).length === 2, "Founder-approved funnel mapping was not persisted");
   passed.push("founder-approved canonical funnel mapping");
 
+  const existingConnectorState = await asAuthenticated(founderA, async (transaction) => {
+    const [row] = await transaction`select public.get_connector_workspace_state(${workspaceA}) as state`;
+    return row.state;
+  });
+  if (existingConnectorState.connection?.status !== "revoked" && existingConnectorState.connection?.id) {
+    await asAuthenticated(founderA, (transaction) => transaction`
+      select public.revoke_connector_connection(${workspaceA},${existingConnectorState.connection.id},${randomUUID()})
+    `);
+  }
+  const connectorProjectId = String(Date.now());
+  let connectorState = await asAuthenticated(founderA, async (transaction) => {
+    const requestId = randomUUID();
+    const [row] = await transaction`
+      select public.begin_posthog_connection(
+        ${workspaceA},'us',${connectorProjectId},'Database gate PostHog',${requestId},${`connector-start-${requestId}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  const connectionId = connectorState.connection?.id;
+  assert(connectionId && connectorState.connection.status === "pending", "PostHog connection did not start pending");
+  await asWorker(workspaceA, (transaction) => transaction`
+    select app.complete_posthog_connection(
+      ${workspaceA},${connectionId},${founderA},'managed-http-v1',${`vault:gate:${randomUUID()}`},'2099-09-30T00:00:00.000Z'
+    )
+  `);
+  connectorState = await asAuthenticated(founderA, async (transaction) => {
+    const requestId = randomUUID();
+    const [row] = await transaction`
+      select public.save_connector_mapping(
+        ${workspaceA},${connectionId},${activationMetric.id},0,'weekly-activation',3,
+        ${requestId},${`connector-mapping-${requestId}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  assert(connectorState.connection?.status === "healthy" && connectorState.mappings.length === 1, "Founder-approved connector mapping was not isolated to the active connection");
+
+  const connectorWindowStart = "2026-09-01T00:00:00.000Z";
+  const connectorWindowEnd = "2026-09-08T00:00:00.000Z";
+  const connectorFreshAsOf = "2026-09-08T01:00:00.000Z";
+  const connectorContentHash = randomUUID().replaceAll("-", "").repeat(2);
+  const connectorSyncKey = `connector-sync-${randomUUID()}`;
+  const connectorResult = [{
+    metricDefinitionId: activationMetric.id,
+    endpointName: "weekly-activation",
+    endpointVersion: 3,
+    value: 25,
+    qualityState: "current",
+    qualityScore: 1,
+    windowStart: connectorWindowStart,
+    windowEnd: connectorWindowEnd,
+    segment: "Self-serve founders",
+    freshAsOf: connectorFreshAsOf,
+    providerRequestId: "gate-execution-1",
+    providerObjectRef: `posthog_endpoint:${connectorProjectId}:weekly-activation:v3`,
+    contentHash: connectorContentHash,
+    checkpoint: "3:gate-execution-1",
+  }];
+  await asWorker(workspaceA, (transaction) => transaction`
+    select app.commit_connector_sync(
+      ${workspaceA},${connectionId},${founderA},${connectorSyncKey},${randomUUID()},
+      ${connectorWindowStart},${connectorWindowEnd},'Self-serve founders',${sql.json(connectorResult)}
+    )
+  `);
+  const [{ count: connectorObservationsBeforeReplay }] = await sql`
+    select count(*)::integer as count from app.metric_observation
+    where workspace_id=${workspaceA} and metric_definition_id=${activationMetric.id} and window_start=${connectorWindowStart}
+  `;
+  await asWorker(workspaceA, (transaction) => transaction`
+    select app.commit_connector_sync(
+      ${workspaceA},${connectionId},${founderA},${connectorSyncKey},${randomUUID()},
+      ${connectorWindowStart},${connectorWindowEnd},'Self-serve founders',${sql.json([{ ...connectorResult[0], providerRequestId: "gate-execution-2", checkpoint: "3:gate-execution-2" }])}
+    )
+  `);
+  const [{ count: connectorObservationsAfterReplay }] = await sql`
+    select count(*)::integer as count from app.metric_observation
+    where workspace_id=${workspaceA} and metric_definition_id=${activationMetric.id} and window_start=${connectorWindowStart}
+  `;
+  assert(connectorObservationsBeforeReplay === 1 && connectorObservationsAfterReplay === 1, "Exact connector replay duplicated observations");
+  passed.push("PostHog exact replay has one aggregate observation effect");
+
+  const connectorFailureKey = `connector-failure-${randomUUID()}`;
+  await asWorker(workspaceA, (transaction) => transaction`
+    select app.record_connector_sync_failure(
+      ${workspaceA},${connectionId},${founderA},${connectorFailureKey},${randomUUID()},
+      ${connectorWindowStart},${connectorWindowEnd},'Self-serve founders',1,'POSTHOG_RATE_LIMITED'
+    )
+  `);
+  let [latestConnectorSnapshot] = await sql`
+    select quality_state,value_numeric from app.metric_snapshot
+    where workspace_id=${workspaceA} and metric_definition_id=${activationMetric.id}
+      and window_start=${connectorWindowStart} order by created_at desc,id desc limit 1
+  `;
+  assert(latestConnectorSnapshot?.quality_state === "stale" && Number(latestConnectorSnapshot.value_numeric) === 25, "Connector failure did not preserve prior evidence as stale");
+  await asWorker(workspaceA, (transaction) => transaction`
+    select app.commit_connector_sync(
+      ${workspaceA},${connectionId},${founderA},${connectorSyncKey},${randomUUID()},
+      ${connectorWindowStart},${connectorWindowEnd},'Self-serve founders',${sql.json(connectorResult)}
+    )
+  `);
+  [latestConnectorSnapshot] = await sql`
+    select quality_state,value_numeric from app.metric_snapshot
+    where workspace_id=${workspaceA} and metric_definition_id=${activationMetric.id}
+      and window_start=${connectorWindowStart} order by created_at desc,id desc limit 1
+  `;
+  const [recoveredConnection] = await sql`select status,last_error_code from app.connector_connection where id=${connectionId}`;
+  assert(latestConnectorSnapshot?.quality_state === "current" && Number(latestConnectorSnapshot.value_numeric) === 25 && recoveredConnection?.status === "healthy" && recoveredConnection.last_error_code === null, "Exact committed evidence did not recover the stale connector state");
+  const connectorLineage = await asAuthenticated(founderA, async (transaction) => {
+    const [row] = await transaction`select public.get_connector_metric_lineage(${workspaceA}) as lineage`;
+    return row.lineage;
+  });
+  assert(connectorLineage.some((lineage) => lineage.metricDefinitionId === activationMetric.id && lineage.endpointName === "weekly-activation"), "Connector source lineage was unavailable to the founder");
+  passed.push("PostHog failure is stale, traceable, and recoverable");
+
+  const [{ count: credentialColumnCount }] = await sql`
+    select count(*)::integer as count from information_schema.columns
+    where table_schema='app' and table_name='secret_reference' and column_name in ('access_token','refresh_token')
+  `;
+  assert(credentialColumnCount === 0, "Credential material columns exist in the application database");
+  await expectDatabaseError("authenticated connector commit denied", "42501", () =>
+    asAuthenticated(founderA, (transaction) => transaction`
+      select app.commit_connector_sync(
+        ${workspaceA},${connectionId},${founderA},${`browser-forged-${randomUUID()}`},${randomUUID()},
+        ${connectorWindowStart},${connectorWindowEnd},'Self-serve founders',${sql.json(connectorResult)}
+      )
+    `),
+  );
+  await expectDatabaseError("connector cross-tenant load denied", "42501", () =>
+    asAuthenticated(founderA, (transaction) => transaction`select public.get_connector_workspace_state(${workspaceB})`),
+  );
+
   await expectDatabaseError("metric observation update blocked", "55000", () =>
     asWorker(workspaceA, (transaction) => transaction`
       update app.metric_observation set source_note = 'changed'

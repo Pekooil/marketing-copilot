@@ -24,6 +24,12 @@ test("protected manual metrics fail closed without a valid session", async ({ pa
   await expect(page).toHaveURL(/\/auth\/sign-in\?next=%2Fmetrics/);
 });
 
+test("PostHog client metadata fails closed when the secure connector runtime is absent", async ({ request }) => {
+  const response = await request.get("/connectors/posthog/client-metadata");
+  expect(response.status()).toBe(503);
+  await expect(response.json()).resolves.toEqual({ error: "connector_not_configured" });
+});
+
 test("onboarding rejects vague goals and completes a five-hour/$100 review", async ({ page }) => {
   await page.goto("/test-support/onboarding");
   await page.getByLabel(/Workspace name/).fill("Acme workspace");
@@ -77,4 +83,34 @@ test("founder previews manual metrics and traces a funnel conversion to its sour
   await page.locator("details summary").first().click();
   await expect(page.getByText(/sprint3-demo\.csv/).first()).toBeVisible();
   await expect(page.getByText(/Evidence:/).first()).toBeVisible();
+});
+
+test("founder maps a PostHog Endpoint, replays safely, sees stale failure, and recovers", async ({ page }) => {
+  await page.goto("/test-support/metrics");
+  const connector = page.getByRole("region", { name: "PostHog aggregate Endpoints" });
+  await connector.getByRole("button", { name: "Discover Endpoints" }).click();
+  await connector.getByLabel("Aggregate Endpoint").nth(1).selectOption("weekly-activation");
+  await connector.getByRole("button", { name: "Approve mapping" }).nth(1).click();
+  await expect(connector.getByText("Founder-approved Endpoint mapping saved.")).toBeVisible();
+  await connector.getByLabel("Window start").fill("2026-08-01");
+  await connector.getByLabel("Window end").fill("2026-08-08");
+  await connector.getByRole("button", { name: "Refresh 1 mapped metrics" }).click();
+  await expect(connector.getByText("1 PostHog aggregate refreshed with source lineage.")).toBeVisible();
+  await page.locator("details summary").nth(1).click();
+  await expect(page.getByText(/PostHog weekly-activation v3/)).toBeVisible();
+  await expect(page.getByText(/execution-demo-1/)).toBeVisible();
+
+  await connector.getByRole("button", { name: "Refresh 1 mapped metrics" }).click();
+  await expect(connector.getByText("Exact replay recovered with no duplicate observation.")).toBeVisible();
+  await expect(connector.getByText("succeeded · 1/1")).toHaveCount(1);
+
+  await connector.getByRole("button", { name: "Refresh 1 mapped metrics" }).click();
+  await expect(connector.getByText(/rate limiting refreshes/i)).toBeVisible();
+  await expect(connector.getByText("degraded", { exact: true })).toBeVisible();
+  await expect(page.getByText("stale", { exact: true }).last()).toBeVisible();
+
+  await connector.getByRole("button", { name: "Refresh 1 mapped metrics" }).click();
+  await expect(connector.getByText("PostHog aggregate recovered from committed evidence.")).toBeVisible();
+  await expect(connector.getByText("healthy", { exact: true })).toBeVisible();
+  await expect(page.getByText("current", { exact: true }).last()).toBeVisible();
 });

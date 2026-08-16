@@ -27,5 +27,15 @@
 | Funnel conversions require current, compatible scope | Unit + evaluation + component + browser |
 | Displayed funnel numbers expose source and evidence lineage | Component + browser |
 | Manual-metrics analytics excludes customer content and identifiers | Unit |
+| PostHog authorization uses CIMD, PKCE, sealed expiring state, HTTPS production callback, and only `endpoint:read` | Unit + route contract + browser fail-closed gate |
+| Access/refresh tokens never enter application tables, logs, analytics, or model context | Schema/migration + unit + raw DB gate |
+| Adapter cannot execute `/query`, raw events, persons, or arbitrary provider-native queries | Capability contract + adversarial evaluation |
+| Founder mapping pins one approved metric to one Endpoint version | Component + migration contract + raw DB gate |
+| Endpoint output is one exact-scope aggregate row; zero and unknown remain distinct | Unit + evaluation + raw DB gate |
+| Exact connector replay has one source/observation effect | Stable identity evaluation + migration + raw DB gate |
+| Provider failure preserves prior evidence as stale and blocks current-quality conclusions | Component/browser + migration + raw DB gate |
+| Exact committed replay can recover stale state without duplicating observations | Evaluation + browser + raw DB gate |
+| Connector state, mapping, runs, lineage, and worker commits remain tenant isolated | Isolation/migration + raw DB gate |
+| Connector analytics rejects project, Endpoint, metric, scope, value, and lineage identifiers | Unit |
 
 The raw authenticated PostgreSQL matrix and forward/down/forward migration rehearsal are required before staging release. The executable harnesses are `pnpm db:gate` and `pnpm db:rehearse`; live evidence remains pending until `DATABASE_TEST_URL` is provisioned.

@@ -33,6 +33,7 @@
     "demo:sprint1": "node scripts/sprint1-demo.mjs",
     "demo:sprint2": "node scripts/sprint2-demo.mjs",
     "demo:sprint3": "node scripts/sprint3-demo.mjs",
+    "demo:sprint4": "node scripts/sprint4-demo.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm schema:check && pnpm migration:check && pnpm test && pnpm build"
   },
   "dependencies": {

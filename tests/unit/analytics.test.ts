@@ -50,4 +50,12 @@ describe("foundation analytics", () => {
     expect(() => analyticsEventSchema.parse({ ...base, name: "manual_metrics_imported", properties: { rowCountBucket: "two_to_ten", qualityStates: ["current"], filename: "private.csv" } })).toThrow();
     expect(() => analyticsEventSchema.parse({ ...base, name: "metric_definition_saved", properties: { version: "first", unit: "count", aggregation: "count", metricName: "Private activation" } })).toThrow();
   });
+
+  it("allows connector health dimensions but rejects provider object identifiers and customer scope", () => {
+    const base = { eventId: "10000000-0000-4000-8000-000000000005", workspaceHash: "a".repeat(20), userHash: "b".repeat(20), occurredAt: new Date().toISOString() };
+    expect(analyticsEventSchema.parse({ ...base, name: "connector_sync_completed", properties: { provider: "posthog", outcome: "recovered", metricCountBucket: "two_to_five", qualityStates: ["current"] } })).toBeTruthy();
+    expect(analyticsEventSchema.parse({ ...base, name: "connector_sync_failed", properties: { provider: "posthog", connectionState: "degraded", errorClass: "POSTHOG_RATE_LIMITED" } })).toBeTruthy();
+    expect(() => analyticsEventSchema.parse({ ...base, name: "connector_mapping_saved", properties: { provider: "posthog", version: "first", materialized: true, endpointName: "private-activation" } })).toThrow();
+    expect(() => analyticsEventSchema.parse({ ...base, name: "connector_sync_completed", properties: { provider: "posthog", outcome: "succeeded", metricCountBucket: "one", qualityStates: ["current"], segment: "Enterprise customer" } })).toThrow();
+  });
 });

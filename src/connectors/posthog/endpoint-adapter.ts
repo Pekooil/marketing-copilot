@@ -81,7 +81,7 @@ export class PosthogEndpointAdapter implements ConnectorAdapter {
     const segment = z.string().min(1).max(300).parse(row[indexes.segment]);
     if (windowStart !== range.windowStart || windowEnd !== range.windowEnd || segment !== range.segment) throw invalidResponse("The mapped Endpoint returned a different window or segment.");
     const qualityState = value === null ? "unknown" as const : "current" as const;
-    const canonical = JSON.stringify({ endpoint: mapping.endpointName, version: mapping.endpointVersion, executionId: result.execution_id, value, windowStart, windowEnd, segment, freshAsOf });
+    const canonical = JSON.stringify({ endpoint: mapping.endpointName, version: mapping.endpointVersion, value, windowStart, windowEnd, segment });
     return connectorSnapshotSchema.parse({
       value,
       qualityState,

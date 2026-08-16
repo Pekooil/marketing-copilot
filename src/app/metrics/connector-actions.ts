@@ -119,7 +119,8 @@ export const refreshPosthogMetrics: RefreshConnectorAction = async (rawInput) =>
       const snapshot = await adapter.fetchMetricSnapshot({ connection: context.connection, credentials: { accessToken: tokenSet.accessToken }, mapping, range: input.range, checkpoint: null });
       return { ...snapshot, metricDefinitionId: mapping.metricDefinitionId, endpointName: mapping.endpointName, endpointVersion: mapping.endpointVersion };
     }));
-    const idempotencyKey = createHash("sha256").update(syncKeyParts.toSorted().join(":"), "utf8").digest("hex");
+    const evidenceIdentity = results.map((result) => result.contentHash).toSorted().join(":");
+    const idempotencyKey = createHash("sha256").update(`${syncKeyParts.toSorted().join(":")}:${evidenceIdentity}`, "utf8").digest("hex");
     await commitConnectorSync(config.databaseUrl, { workspaceId: input.workspaceId, connectionId: input.connectionId, actorId: identity.userId, idempotencyKey, requestId: input.requestId, ...input.range, results });
     revalidatePath("/metrics");
     const [connectorState, metricsState] = await Promise.all([loadConnectorWorkspaceState(input.workspaceId), loadMetricsWorkspaceState(input.workspaceId)]);
@@ -136,7 +137,10 @@ export const refreshPosthogMetrics: RefreshConnectorAction = async (rawInput) =>
       }
     }
     const failure = safeFailure("connector.sync", error);
-    try { return { ...failure, connectorState: await loadConnectorWorkspaceState(input.workspaceId) }; } catch { return failure; }
+    try {
+      const [connectorState, metricsState] = await Promise.all([loadConnectorWorkspaceState(input.workspaceId), loadMetricsWorkspaceState(input.workspaceId)]);
+      return { ...failure, connectorState, metricsState };
+    } catch { return failure; }
   }
 };
 

@@ -18,6 +18,6 @@ A numeric zero remains current. A null value becomes unknown. Raw events, person
 
 ## Reliability and identity
 
-Sync identity is derived from connection, metric definition, pinned Endpoint version, window, and segment. Provider execution ID, Endpoint reference, response content hash, and checkpoint form the source lineage. Credential, permission, mapping, rate-limit, transient, and invalid-response failures have distinct safe classes.
+Request identity is derived from connection, metric definition, pinned Endpoint version, window, and segment; atomic commit identity also includes normalized aggregate content. Execution and freshness timestamps do not duplicate an unchanged aggregate, while a changed value remains eligible to create traceable conflicting evidence. Provider execution ID, Endpoint reference, response content hash, and checkpoint form the source lineage. Credential, permission, mapping, rate-limit, transient, and invalid-response failures have distinct safe classes.
 
 US and EU Cloud are supported. Self-hosted PostHog, Batch Exports, arbitrary insights, automated mapping approval, background schedules, and raw-event processing are outside this Sprint 4 slice.
