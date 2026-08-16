@@ -6,4 +6,4 @@ The `app_worker` role has no login and no RLS bypass. A privileged server transa
 
 An event trigger enables and forces RLS and revokes grants on every newly created `app` table. New tables therefore fail closed until a later migration supplies deliberate grants and policies.
 
-The automated suite covers the two-tenant select/insert/update/delete matrix, forged workspace IDs, missing worker scope, and migration assertions. Raw PostgreSQL execution awaits the Docker-compatible local database runtime recorded in S1-004.
+The automated suite covers the two-tenant select/insert/update/delete matrix, forged workspace IDs, missing worker scope, and migration assertions. On 2026-08-16 the same matrix passed against the dedicated Supabase gate project, including authenticated isolation, forged inserts, cross-tenant updates/deletes, anonymous denial, scoped worker access, owner and active-objective invariants, audit immutability, and automatic default-deny protection for new `app` tables.

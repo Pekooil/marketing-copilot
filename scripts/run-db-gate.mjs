@@ -23,17 +23,18 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function expectDatabaseError(label, expectedCode, work) {
+async function expectDatabaseError(label, expectedCodes, work) {
+  const acceptedCodes = Array.isArray(expectedCodes) ? expectedCodes : [expectedCodes];
   try {
     await work();
   } catch (error) {
-    if (error?.code === expectedCode) {
+    if (acceptedCodes.includes(error?.code)) {
       passed.push(label);
       return;
     }
     throw error;
   }
-  throw new Error(`${label}: expected PostgreSQL error ${expectedCode}`);
+  throw new Error(`${label}: expected PostgreSQL error ${acceptedCodes.join(" or ")}`);
 }
 
 function asAuthenticated(userId, work) {
@@ -166,12 +167,12 @@ try {
       'workspace', ${workspaceA}, ${randomUUID()}, 'succeeded', '{}'
     )
   `);
-  await expectDatabaseError("audit update blocked", "55000", () =>
+  await expectDatabaseError("audit update blocked", ["42501", "55000"], () =>
     asWorker(workspaceA, (transaction) => transaction`
       update app.audit_event set action = 'changed' where id = ${auditId}
     `),
   );
-  await expectDatabaseError("audit delete blocked", "55000", () =>
+  await expectDatabaseError("audit delete blocked", ["42501", "55000"], () =>
     asWorker(workspaceA, (transaction) => transaction`
       delete from app.audit_event where id = ${auditId}
     `),

@@ -11,4 +11,4 @@ Supabase Auth is isolated behind `SessionVerifier` and `resolveIdentity`. Mutati
 
 Missing configuration, missing sessions, expired sessions, verification errors, and invalid callbacks fail closed. Auth failures expose one generic user message and do not log email addresses, tokens, or secrets.
 
-Local/test values belong in `.env.local`; production credentials remain deferred and must be provisioned through the deployment environment. Exact production callback URLs must be configured in Supabase rather than broad wildcards.
+Local/test values belong in `.env.local`. The Vercel project now holds the production, preview, and development Supabase configuration; Supabase uses the exact production site/callback URL plus a project-scoped Vercel preview callback pattern. No secret is committed to the repository.

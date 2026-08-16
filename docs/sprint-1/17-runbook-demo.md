@@ -38,9 +38,8 @@ Use only the dedicated non-production gate project. Keep connection strings in i
 
 ## Known limits / production blockers
 
-- No Docker-compatible local Supabase runtime or test database is provisioned, so forward/down/forward and raw authenticated RLS execution remain unrun.
-- Production Supabase/Vercel credentials and exact callback allowlists are intentionally deferred.
-- Onboarding server persistence is implemented; staging migration and authenticated save/resume evidence remain pending.
+- The dedicated Supabase gate project is paused when not under active verification; resume it before a staging or founder demo and restore Calyxa afterward if the free-plan active-project limit requires it.
+- A founder-facing browser demo still requires creation of explicit private-beta test accounts; the live database gate verified persistence under Supabase's authenticated role and `auth.uid()` claims without creating real users.
 - Analytics has a provider-neutral sink only; no production analytics vendor or durable outbox is configured.
 - Invitations, URL analysis, external connectors, AI generation, and all Class D–F execution remain out of scope.
 - Real founder field testing is deferred by founder decision; Sprint 0 evidence gate remains overridden, not passed.
@@ -49,4 +48,4 @@ Use only the dedicated non-production gate project. Keep connection strings in i
 
 Run `pnpm demo:sprint1` for the scripted order, then `pnpm test:release`. On a clean seeded staging stack, demonstrate Founder A setup, vague-goal failure, known-zero baseline, five-hour/$100 envelope, retry/conflict safety, Founder B isolation at application and raw DB layers, and audited support reconstruction.
 
-The sprint gate is not release-ready until the three database-backed scenarios and server persistence adapter pass on staging.
+The Sprint 1 technical gate passed on 2026-08-16: all three migration paths, the raw isolation matrix, and authenticated onboarding persistence passed on the dedicated live Supabase project. Founder field acceptance remains intentionally deferred and is not represented as passed.
