@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   index,
   bigint,
+  boolean,
   integer,
   jsonb,
   date,
@@ -25,6 +26,14 @@ export const riskTolerance = appSchema.enum("risk_tolerance", ["low", "medium", 
 export const mutationStatus = appSchema.enum("mutation_status", ["started", "succeeded", "failed"]);
 export const auditActorType = appSchema.enum("audit_actor_type", ["founder", "worker", "support"]);
 export const auditResult = appSchema.enum("audit_result", ["succeeded", "denied"]);
+export const metricDefinitionStatus = appSchema.enum("metric_definition_status", ["draft", "active"]);
+export const metricApprovalState = appSchema.enum("metric_approval_state", ["draft", "founder_approved"]);
+export const metricUnit = appSchema.enum("metric_unit", ["count", "percentage", "currency_minor", "seconds", "custom"]);
+export const metricAggregation = appSchema.enum("metric_aggregation", ["count", "sum", "average", "unique", "ratio", "latest"]);
+export const metricQualityState = appSchema.enum("metric_quality_state", ["current", "stale", "missing", "conflicted", "invalid", "unknown"]);
+export const funnelDefinitionStatus = appSchema.enum("funnel_definition_status", ["draft", "active"]);
+export const canonicalFunnelStage = appSchema.enum("canonical_funnel_stage", ["awareness", "acquisition", "conversion", "activation", "retention", "revenue", "referral"]);
+export const funnelMappingState = appSchema.enum("funnel_mapping_state", ["mapped", "unmapped"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -186,6 +195,167 @@ export const contextSnapshots = appSchema.table(
   (table) => [
     uniqueIndex("context_snapshot_sequence_unique").on(table.workspaceId, table.sequence),
     index("context_snapshot_workspace_created_idx").on(table.workspaceId, table.createdAt),
+  ],
+);
+
+export const metricDefinitions = appSchema.table(
+  "metric_definition",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    nameKey: text("name_key").notNull(),
+    currentVersionId: uuid("current_version_id"),
+    status: metricDefinitionStatus("status").notNull().default("draft"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("metric_definition_workspace_name_unique").on(table.workspaceId, table.nameKey)],
+);
+
+export const metricDefinitionVersions = appSchema.table(
+  "metric_definition_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    metricDefinitionId: uuid("metric_definition_id").notNull().references(() => metricDefinitions.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    name: text("name").notNull(),
+    businessDefinition: text("business_definition").notNull(),
+    unit: metricUnit("unit").notNull(),
+    customUnit: text("custom_unit"),
+    aggregation: metricAggregation("aggregation").notNull(),
+    segmentContract: jsonb("segment_contract").notNull(),
+    sourceContract: jsonb("source_contract").notNull(),
+    timezone: text("timezone").notNull(),
+    freshnessHours: integer("freshness_hours").notNull(),
+    approvalState: metricApprovalState("approval_state").notNull(),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("metric_definition_version_unique").on(table.metricDefinitionId, table.version),
+    index("metric_definition_version_workspace_idx").on(table.workspaceId, table.metricDefinitionId),
+  ],
+);
+
+export const manualImportBatches = appSchema.table(
+  "manual_import_batch",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    sourceRecordId: uuid("source_record_id").notNull().references(() => sourceRecords.id),
+    sourceHash: text("source_hash").notNull(),
+    filename: text("filename").notNull(),
+    rowCount: integer("row_count").notNull(),
+    requestId: uuid("request_id").notNull(),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("manual_import_workspace_source_unique").on(table.workspaceId, table.sourceHash),
+    uniqueIndex("manual_import_request_unique").on(table.workspaceId, table.requestId),
+    index("manual_import_workspace_created_idx").on(table.workspaceId, table.createdAt),
+  ],
+);
+
+export const metricObservations = appSchema.table(
+  "metric_observation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    metricDefinitionId: uuid("metric_definition_id").notNull().references(() => metricDefinitions.id),
+    importBatchId: uuid("import_batch_id").notNull().references(() => manualImportBatches.id),
+    sourceRecordId: uuid("source_record_id").notNull().references(() => sourceRecords.id),
+    sourceRowNumber: integer("source_row_number").notNull(),
+    rowKey: text("row_key").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    segmentKey: text("segment_key").notNull(),
+    valueNumeric: numeric("value_numeric", { precision: 20, scale: 6 }),
+    qualityState: metricQualityState("quality_state").notNull(),
+    qualityScore: numeric("quality_score", { precision: 4, scale: 3 }).notNull(),
+    freshAsOf: timestamp("fresh_as_of", { withTimezone: true }).notNull(),
+    sourceNote: text("source_note").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("metric_observation_row_unique").on(table.importBatchId, table.sourceRowNumber),
+    uniqueIndex("metric_observation_identity_unique").on(table.workspaceId, table.metricDefinitionId, table.rowKey, table.sourceRecordId),
+    index("metric_observation_scope_idx").on(table.workspaceId, table.metricDefinitionId, table.windowStart, table.windowEnd, table.segmentKey),
+  ],
+);
+
+export const metricSnapshots = appSchema.table(
+  "metric_snapshot",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    metricDefinitionId: uuid("metric_definition_id").notNull().references(() => metricDefinitions.id),
+    importBatchId: uuid("import_batch_id").notNull().references(() => manualImportBatches.id),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    segmentKey: text("segment_key").notNull(),
+    valueNumeric: numeric("value_numeric", { precision: 20, scale: 6 }),
+    qualityState: metricQualityState("quality_state").notNull(),
+    qualityScore: numeric("quality_score", { precision: 4, scale: 3 }).notNull(),
+    freshAsOf: timestamp("fresh_as_of", { withTimezone: true }).notNull(),
+    calculationVersion: text("calculation_version").notNull(),
+    evidenceRefs: jsonb("evidence_refs").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("metric_snapshot_idempotency_unique").on(table.workspaceId, table.idempotencyKey),
+    index("metric_snapshot_latest_idx").on(table.workspaceId, table.metricDefinitionId, table.createdAt),
+  ],
+);
+
+export const funnelDefinitions = appSchema.table(
+  "funnel_definition",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    currentVersionId: uuid("current_version_id"),
+    status: funnelDefinitionStatus("status").notNull().default("draft"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("funnel_definition_workspace_unique").on(table.workspaceId)],
+);
+
+export const funnelDefinitionVersions = appSchema.table(
+  "funnel_definition_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    funnelDefinitionId: uuid("funnel_definition_id").notNull().references(() => funnelDefinitions.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    name: text("name").notNull(),
+    approvedBy: uuid("approved_by").notNull().references(() => userAccounts.id),
+    decisionRef: text("decision_ref").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("funnel_definition_version_unique").on(table.funnelDefinitionId, table.version)],
+);
+
+export const funnelStages = appSchema.table(
+  "funnel_stage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    funnelVersionId: uuid("funnel_version_id").notNull().references(() => funnelDefinitionVersions.id, { onDelete: "cascade" }),
+    stage: canonicalFunnelStage("stage").notNull(),
+    label: text("label").notNull(),
+    position: integer("position").notNull(),
+    metricDefinitionId: uuid("metric_definition_id").references(() => metricDefinitions.id),
+    definition: text("definition").notNull(),
+    included: boolean("included").notNull(),
+    mappingState: funnelMappingState("mapping_state").notNull(),
+    qualityThreshold: numeric("quality_threshold", { precision: 4, scale: 3 }).notNull().default("1"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("funnel_stage_version_stage_unique").on(table.funnelVersionId, table.stage),
+    uniqueIndex("funnel_stage_version_position_unique").on(table.funnelVersionId, table.position),
+    index("funnel_stage_workspace_version_idx").on(table.workspaceId, table.funnelVersionId, table.position),
   ],
 );
 
