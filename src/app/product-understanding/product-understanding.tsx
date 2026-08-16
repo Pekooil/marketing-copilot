@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { useState, useTransition, type FormEvent } from "react";
 
 import type {
@@ -97,12 +98,10 @@ export function ProductUnderstanding({
             {status}
           </p>
         </div>
-        <Link
-          href="/onboarding"
-          className="min-h-11 rounded-lg px-3 py-3 text-sm font-semibold hover:bg-[var(--surface)] focus-visible:outline-2"
-        >
-          Back to workspace setup
-        </Link>
+        <nav aria-label="Workspace setup" className="flex flex-wrap gap-2">
+          <Link href={"/metrics" as Route} className="min-h-11 rounded-lg px-3 py-3 text-sm font-semibold hover:bg-[var(--surface)] focus-visible:outline-2">Manual metrics</Link>
+          <Link href="/onboarding" className="min-h-11 rounded-lg px-3 py-3 text-sm font-semibold hover:bg-[var(--surface)] focus-visible:outline-2">Workspace setup</Link>
+        </nav>
       </header>
 
       <section className="grid gap-10 py-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)] lg:py-14">

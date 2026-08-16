@@ -49,5 +49,5 @@ function signInRedirect(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/onboarding/:path*", "/product-understanding/:path*", "/workspace/:path*"],
+  matcher: ["/onboarding/:path*", "/product-understanding/:path*", "/metrics/:path*", "/workspace/:path*"],
 };
