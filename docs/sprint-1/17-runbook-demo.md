@@ -28,6 +28,14 @@ Absent, expired, or revoked authorization fails before any trace query. Returned
 4. Prefer a forward database correction. Never disable RLS, delete version history, or drop audit events in normal recovery.
 5. Re-run `pnpm test:release`, raw two-tenant DB scenarios, and a clean-seed staging demo before re-enabling.
 
+## Database gate commands
+
+Use only the dedicated non-production gate project. Keep connection strings in ignored local environment files and never print them.
+
+1. `pnpm db:apply` applies checksum-tracked forward migrations using `DATABASE_URL`.
+2. `ALLOW_DESTRUCTIVE_DB_REHEARSAL=1 pnpm db:rehearse` exercises empty forward, prior-schema upgrade, and destructive test-only down/forward using `DATABASE_TEST_URL`. It refuses to run if any non-gate workspace exists.
+3. `ALLOW_DB_GATE_WRITES=1 pnpm db:gate` seeds two founders and executes raw authenticated, anonymous, worker-scope, invariant, onboarding, idempotency, stale-write, and audit-attribution scenarios.
+
 ## Known limits / production blockers
 
 - No Docker-compatible local Supabase runtime or test database is provisioned, so forward/down/forward and raw authenticated RLS execution remain unrun.

@@ -55,16 +55,25 @@ export async function saveOnboarding(
       p_activate: input.data.activate,
       p_request_id: input.data.requestId,
       p_idempotency_key: input.data.idempotencyKey,
+      p_expected_versions: input.data.expectedVersions,
       p_draft: input.data.draft,
     });
 
     if (error) {
+      if (error.code === "42501" && input.data.workspaceId) {
+        await supabase.rpc("record_onboarding_denial", {
+          p_workspace_id: input.data.workspaceId,
+          p_request_id: input.data.requestId,
+        });
+      }
       logger.warn({ event: "onboarding.save", result: "failed", errorClass: error.code });
       return {
         ok: false,
         message:
           error.code === "42501"
             ? "That workspace is unavailable. Refresh and try again."
+            : error.code === "40001"
+              ? "This setup changed in another session. Refresh before saving again."
             : "Your draft could not be saved. Your entries remain on this page.",
       };
     }

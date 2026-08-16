@@ -51,6 +51,12 @@ export const onboardingStateSchema = z.object({
   workspaceId: z.uuid().nullable(),
   step: z.number().int().min(0).max(3),
   activated: z.boolean(),
+  versions: z.object({
+    workspace: z.number().int().nonnegative(),
+    profile: z.number().int().nonnegative(),
+    objective: z.number().int().nonnegative(),
+    constraints: z.number().int().nonnegative(),
+  }),
   draft: onboardingDraftSchema,
 });
 
@@ -60,6 +66,7 @@ export const emptyOnboardingState: OnboardingState = {
   workspaceId: null,
   step: 0,
   activated: false,
+  versions: { workspace: 0, profile: 0, objective: 0, constraints: 0 },
   draft: emptyOnboardingDraft,
 };
 
@@ -69,6 +76,7 @@ export const onboardingSaveInputSchema = z.object({
   activate: z.boolean(),
   requestId: z.uuid(),
   idempotencyKey: z.string().min(8).max(128),
+  expectedVersions: onboardingStateSchema.shape.versions,
   draft: onboardingDraftSchema,
 });
 

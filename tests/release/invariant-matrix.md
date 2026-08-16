@@ -12,6 +12,7 @@
 | Mutation and audit correlate/commit together | Audit unit + repository transaction contract |
 | Audit update/delete denied | Migration contract |
 | Onboarding vague goal/zero baseline/resume | Component + Playwright |
+| Onboarding server save/resume and stale-write safety | Authenticated RPC contract + raw DB gate pending runtime |
 | Analytics schema excludes entered content | Unit |
 
-The raw authenticated PostgreSQL matrix and forward/down/forward migration rehearsal are required before staging release. They cannot execute in this workspace until a Docker-compatible Supabase runtime or `DATABASE_TEST_URL` is provisioned.
+The raw authenticated PostgreSQL matrix and forward/down/forward migration rehearsal are required before staging release. The executable harnesses are `pnpm db:gate` and `pnpm db:rehearse`; live evidence remains pending until `DATABASE_TEST_URL` is provisioned.

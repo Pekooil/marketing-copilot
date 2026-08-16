@@ -53,6 +53,7 @@ describe("onboarding wizard", () => {
         workspaceId: "a0000000-0000-4000-8000-000000000001",
         step: 1,
         activated: false,
+        versions: { workspace: 1, profile: 1, objective: 0, constraints: 0 },
         draft: {
           workspaceName: "Acme workspace",
           companyName: "Acme",
@@ -91,6 +92,7 @@ describe("onboarding wizard", () => {
         workspaceId: null,
         step: 0,
         activate: false,
+        expectedVersions: { workspace: 0, profile: 0, objective: 0, constraints: 0 },
         idempotencyKey: expect.stringMatching(/^onboarding-/),
       }),
     );

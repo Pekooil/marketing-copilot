@@ -22,6 +22,7 @@ export function OnboardingWizard({
   saveAction?: SaveOnboardingAction;
 }) {
   const [workspaceId, setWorkspaceId] = useState(initialState.workspaceId);
+  const [versions, setVersions] = useState(initialState.versions);
   const [step, setStep] = useState(initialState.step);
   const [draft, setDraft] = useState(initialState.draft);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -67,6 +68,7 @@ export function OnboardingWizard({
         activate,
         requestId,
         idempotencyKey: `onboarding-${requestId}`,
+        expectedVersions: versions,
         draft,
       });
       setSaving(false);
@@ -76,6 +78,7 @@ export function OnboardingWizard({
         return false;
       }
       setWorkspaceId(result.state.workspaceId);
+      setVersions(result.state.versions);
       setDraft(result.state.draft);
       setStep(activate ? 3 : nextStep);
       setStatus(activate ? "Objective activated securely" : "Draft saved securely");

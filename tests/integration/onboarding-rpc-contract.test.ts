@@ -19,6 +19,8 @@ describe("onboarding persistence RPC", () => {
     expect(sql).toMatch(/insert into app\.resource_constraint_version/i);
     expect(sql).toMatch(/insert into app\.mutation_receipt/i);
     expect(sql).toMatch(/insert into app\.audit_event/i);
+    expect(sql).toMatch(/create function public\.record_onboarding_denial/i);
+    expect(sql).toMatch(/'onboarding\.save'[\s\S]*'denied'/i);
     expect(sql).toMatch(/revoke all on function public\.save_onboarding[\s\S]*from public, anon/i);
     expect(sql).toMatch(/grant execute on function public\.save_onboarding[\s\S]*to authenticated/i);
   });

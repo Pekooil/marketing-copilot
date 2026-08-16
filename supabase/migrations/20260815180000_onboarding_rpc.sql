@@ -38,6 +38,9 @@ begin
       'workspaceId', null,
       'step', 0,
       'activated', false,
+      'versions', jsonb_build_object(
+        'workspace', 0, 'profile', 0, 'objective', 0, 'constraints', 0
+      ),
       'draft', jsonb_build_object(
         'workspaceName', '', 'companyName', '', 'productSummary', '',
         'metricName', '', 'metricDefinition', '', 'direction', 'increase',
@@ -84,6 +87,12 @@ begin
     'workspaceId', v_workspace.id,
     'step', v_step,
     'activated', coalesce(v_objective.status = 'active', false),
+    'versions', jsonb_build_object(
+      'workspace', v_workspace.revision,
+      'profile', coalesce(v_profile.version, 0),
+      'objective', coalesce(v_objective_version.version, 0),
+      'constraints', coalesce(v_constraints.version, 0)
+    ),
     'draft', jsonb_build_object(
       'workspaceName', v_workspace.name,
       'companyName', coalesce(v_profile.canonical_payload #>> '{companyName,value}', ''),
@@ -114,6 +123,7 @@ create function public.save_onboarding(
   p_activate boolean,
   p_request_id uuid,
   p_idempotency_key text,
+  p_expected_versions jsonb,
   p_draft jsonb
 )
 returns jsonb
@@ -141,6 +151,7 @@ declare
   v_constraint_version integer;
   v_constraint_version_id uuid;
   v_action text := case when p_activate then 'onboarding.activated' else 'onboarding.draft_saved' end;
+  v_workspace_created boolean := false;
 begin
   if v_user_id is null then
     raise exception 'authentication required' using errcode = '42501';
@@ -148,11 +159,42 @@ begin
   if p_step < 0 or p_step > 3 then
     raise exception 'invalid onboarding step' using errcode = '22023';
   end if;
+  if jsonb_typeof(p_draft) <> 'object' or jsonb_typeof(p_expected_versions) <> 'object' then
+    raise exception 'invalid onboarding payload' using errcode = '22023';
+  end if;
   if v_workspace_name is null then
     raise exception 'workspace name is required' using errcode = '23514';
   end if;
   if length(trim(p_idempotency_key)) < 8 then
     raise exception 'idempotency key is invalid' using errcode = '22023';
+  end if;
+  if p_step = 0 and (
+    nullif(trim(p_draft ->> 'companyName'), '') is null
+    or nullif(trim(p_draft ->> 'productSummary'), '') is null
+  ) then
+    raise exception 'company profile is incomplete' using errcode = '23514';
+  end if;
+  if p_step = 1 and (
+    nullif(trim(p_draft ->> 'metricName'), '') is null
+    or nullif(trim(p_draft ->> 'metricDefinition'), '') is null
+    or p_draft ->> 'direction' not in ('increase', 'decrease')
+    or nullif(p_draft ->> 'targetValue', '') is null
+    or p_draft ->> 'baselineState' not in ('known', 'unknown')
+    or (p_draft ->> 'baselineState' = 'known' and nullif(p_draft ->> 'baselineValue', '') is null)
+    or nullif(p_draft ->> 'deadline', '')::date <= current_date
+    or nullif(trim(p_draft ->> 'targetSegment'), '') is null
+    or nullif(trim(p_draft ->> 'rationale'), '') is null
+  ) then
+    raise exception 'objective is incomplete' using errcode = '23514';
+  end if;
+  if p_step = 2 and (
+    (p_draft ->> 'founderHours')::numeric < 0
+    or (p_draft ->> 'founderHours')::numeric > 168
+    or (p_draft ->> 'cashBudget')::numeric < 0
+    or upper(p_draft ->> 'currency') !~ '^[A-Z]{3}$'
+    or p_draft ->> 'riskTolerance' not in ('low', 'medium', 'high')
+  ) then
+    raise exception 'resource constraints are invalid' using errcode = '23514';
   end if;
 
   insert into app.user_account (id)
@@ -181,6 +223,9 @@ begin
   end if;
 
   if v_workspace.id is null then
+    if p_step <> 0 then
+      raise exception 'company step must be saved first' using errcode = '23514';
+    end if;
     v_workspace_id := extensions.gen_random_uuid();
     v_slug := regexp_replace(lower(v_workspace_name), '[^a-z0-9]+', '-', 'g');
     v_slug := trim(both '-' from v_slug);
@@ -191,14 +236,9 @@ begin
     returning * into v_workspace;
     insert into app.membership (workspace_id, user_id, role, status)
     values (v_workspace_id, v_user_id, 'owner', 'active');
+    v_workspace_created := true;
   else
     v_workspace_id := v_workspace.id;
-    if v_workspace.name is distinct from v_workspace_name then
-      update app.workspace
-      set name = v_workspace_name, revision = revision + 1
-      where id = v_workspace_id
-      returning * into v_workspace;
-    end if;
   end if;
 
   v_hash := encode(extensions.digest(
@@ -226,6 +266,10 @@ begin
   end if;
 
   if p_step = 0 then
+    if (v_workspace_created and coalesce((p_expected_versions ->> 'workspace')::integer, -1) <> 0)
+       or (not v_workspace_created and v_workspace.revision <> coalesce((p_expected_versions ->> 'workspace')::integer, -1)) then
+      raise exception 'stale workspace version' using errcode = '40001';
+    end if;
     v_profile_payload := jsonb_build_object(
       'companyName', jsonb_build_object(
         'value', trim(p_draft ->> 'companyName'),
@@ -239,12 +283,26 @@ begin
     select * into v_profile from app.company_profile
     where workspace_id = v_workspace_id for update;
     if v_profile.id is null then
+      if coalesce((p_expected_versions ->> 'profile')::integer, -1) <> 0 then
+        raise exception 'stale company profile version' using errcode = '40001';
+      end if;
       insert into app.company_profile (workspace_id)
       values (v_workspace_id) returning * into v_profile;
       v_profile_version := 1;
     else
+      select version into v_profile_version
+      from app.company_profile_version where id = v_profile.current_version_id;
+      if v_profile_version <> coalesce((p_expected_versions ->> 'profile')::integer, -1) then
+        raise exception 'stale company profile version' using errcode = '40001';
+      end if;
       select coalesce(max(version), 0) + 1 into v_profile_version
       from app.company_profile_version where company_profile_id = v_profile.id;
+    end if;
+    if v_workspace.name is distinct from v_workspace_name then
+      update app.workspace
+      set name = v_workspace_name, revision = revision + 1
+      where id = v_workspace_id
+      returning * into v_workspace;
     end if;
     insert into app.company_profile_version (
       workspace_id, company_profile_id, version, canonical_payload,
@@ -264,10 +322,18 @@ begin
     order by case when status = 'active' then 0 else 1 end, updated_at desc
     limit 1 for update;
     if v_objective.id is null then
+      if coalesce((p_expected_versions ->> 'objective')::integer, -1) <> 0 then
+        raise exception 'stale objective version' using errcode = '40001';
+      end if;
       insert into app.objective (workspace_id)
       values (v_workspace_id) returning * into v_objective;
       v_objective_version := 1;
     else
+      select version into v_objective_version
+      from app.objective_version where id = v_objective.current_version_id;
+      if v_objective_version <> coalesce((p_expected_versions ->> 'objective')::integer, -1) then
+        raise exception 'stale objective version' using errcode = '40001';
+      end if;
       select coalesce(max(version), 0) + 1 into v_objective_version
       from app.objective_version where objective_id = v_objective.id;
     end if;
@@ -308,10 +374,18 @@ begin
     where workspace_id = v_workspace_id and objective_id = v_objective.id
     for update;
     if v_constraints.id is null then
+      if coalesce((p_expected_versions ->> 'constraints')::integer, -1) <> 0 then
+        raise exception 'stale resource constraints version' using errcode = '40001';
+      end if;
       insert into app.resource_constraint (workspace_id, objective_id)
       values (v_workspace_id, v_objective.id) returning * into v_constraints;
       v_constraint_version := 1;
     else
+      select version into v_constraint_version
+      from app.resource_constraint_version where id = v_constraints.current_version_id;
+      if v_constraint_version <> coalesce((p_expected_versions ->> 'constraints')::integer, -1) then
+        raise exception 'stale resource constraints version' using errcode = '40001';
+      end if;
       select coalesce(max(version), 0) + 1 into v_constraint_version
       from app.resource_constraint_version where resource_constraint_id = v_constraints.id;
     end if;
@@ -340,6 +414,11 @@ begin
     if p_step <> 3 then
       raise exception 'activation requires review step' using errcode = '23514';
     end if;
+    select version into v_objective_version
+    from app.objective_version where id = v_objective.current_version_id;
+    if v_objective_version <> coalesce((p_expected_versions ->> 'objective')::integer, -1) then
+      raise exception 'stale objective version' using errcode = '40001';
+    end if;
     update app.objective set status = 'superseded'
     where workspace_id = v_workspace_id and status = 'active' and id <> v_objective.id;
     update app.objective set status = 'active' where id = v_objective.id;
@@ -362,14 +441,56 @@ begin
 end;
 $$;
 
+create function public.record_onboarding_denial(
+  p_workspace_id uuid,
+  p_request_id uuid
+)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if v_user_id is null then
+    raise exception 'authentication required' using errcode = '42501';
+  end if;
+  if exists (
+    select 1 from app.membership
+    where workspace_id = p_workspace_id
+      and user_id = v_user_id
+      and status = 'active'
+  ) then
+    raise exception 'denial evidence requires a denied workspace' using errcode = '22023';
+  end if;
+  if not exists (select 1 from app.workspace where id = p_workspace_id) then
+    return;
+  end if;
+
+  insert into app.audit_event (
+    workspace_id, actor_type, actor_id, action, target_type, target_id,
+    target_version, request_id, result, metadata
+  ) values (
+    p_workspace_id, 'founder', v_user_id::text, 'onboarding.save', 'workspace',
+    p_workspace_id::text, null, p_request_id, 'denied', '{}'::jsonb
+  ) on conflict (workspace_id, request_id, action, result) do nothing;
+end;
+$$;
+
 revoke all on function public.get_onboarding_state(uuid) from public, anon;
-revoke all on function public.save_onboarding(uuid, integer, boolean, uuid, text, jsonb) from public, anon;
+revoke all on function public.save_onboarding(uuid, integer, boolean, uuid, text, jsonb, jsonb) from public, anon;
+revoke all on function public.record_onboarding_denial(uuid, uuid) from public, anon;
 grant execute on function public.get_onboarding_state(uuid) to authenticated;
-grant execute on function public.save_onboarding(uuid, integer, boolean, uuid, text, jsonb) to authenticated;
+grant execute on function public.save_onboarding(uuid, integer, boolean, uuid, text, jsonb, jsonb) to authenticated;
+grant execute on function public.record_onboarding_denial(uuid, uuid) to authenticated;
 
 comment on function public.get_onboarding_state(uuid)
 is 'Returns only the authenticated founder onboarding state after membership verification.';
-comment on function public.save_onboarding(uuid, integer, boolean, uuid, text, jsonb)
+comment on function public.save_onboarding(uuid, integer, boolean, uuid, text, jsonb, jsonb)
 is 'Atomically persists versioned onboarding state with idempotency and immutable audit evidence.';
+comment on function public.record_onboarding_denial(uuid, uuid)
+is 'Records privacy-safe denial evidence without exposing the target workspace.';
 
 commit;
