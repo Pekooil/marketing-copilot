@@ -113,6 +113,82 @@ export const companyProfileVersions = appSchema.table(
   ],
 );
 
+export const sourceRecords = appSchema.table(
+  "source_record",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    sourceType: text("source_type").notNull(),
+    providerObjectRef: text("provider_object_ref").notNull(),
+    contentHash: text("content_hash").notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    sensitivity: text("sensitivity").notNull().default("public"),
+    storageRef: text("storage_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("source_record_identity_unique").on(
+      table.workspaceId,
+      table.sourceType,
+      table.providerObjectRef,
+      table.contentHash,
+    ),
+    index("source_record_workspace_observed_idx").on(table.workspaceId, table.observedAt),
+  ],
+);
+
+export const productUnderstandingProposals = appSchema.table(
+  "product_understanding_proposal",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    sourceRecordId: uuid("source_record_id").notNull().references(() => sourceRecords.id),
+    candidatePayload: jsonb("candidate_payload").notNull(),
+    extractorVersion: text("extractor_version").notNull(),
+    requestId: uuid("request_id").notNull(),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("product_understanding_proposal_request_unique").on(table.workspaceId, table.requestId),
+    index("product_understanding_workspace_created_idx").on(table.workspaceId, table.createdAt),
+  ],
+);
+
+export const productUnderstandingReviews = appSchema.table(
+  "product_understanding_review",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    proposalId: uuid("proposal_id").notNull().references(() => productUnderstandingProposals.id),
+    profileVersionId: uuid("profile_version_id").notNull().references(() => companyProfileVersions.id),
+    correctedPayload: jsonb("corrected_payload").notNull(),
+    decisionRef: text("decision_ref").notNull(),
+    reviewedBy: uuid("reviewed_by").notNull().references(() => userAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("product_understanding_review_proposal_unique").on(table.proposalId)],
+);
+
+export const contextSnapshots = appSchema.table(
+  "context_snapshot",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    sequence: integer("sequence").notNull(),
+    profileVersionId: uuid("profile_version_id").notNull().references(() => companyProfileVersions.id),
+    snapshotPayload: jsonb("snapshot_payload").notNull(),
+    sourceRefs: jsonb("source_refs").notNull(),
+    createdBy: uuid("created_by").notNull().references(() => userAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("context_snapshot_sequence_unique").on(table.workspaceId, table.sequence),
+    index("context_snapshot_workspace_created_idx").on(table.workspaceId, table.createdAt),
+  ],
+);
+
 export const objectives = appSchema.table(
   "objective",
   {

@@ -36,4 +36,10 @@ describe("foundation analytics", () => {
     await analytics.trackOnce("development", { ...context, environment: "development" }, event);
     expect(send).not.toHaveBeenCalled();
   });
+
+  it("allows only privacy-safe product-understanding dimensions", () => {
+    const base = { eventId: "10000000-0000-4000-8000-000000000003", workspaceHash: "a".repeat(20), userHash: "b".repeat(20), occurredAt: new Date().toISOString() };
+    expect(analyticsEventSchema.parse({ ...base, name: "product_url_analyzed", properties: { outcome: "proposal_created", redirectBucket: "one" } })).toBeTruthy();
+    expect(() => analyticsEventSchema.parse({ ...base, name: "product_url_analyzed", properties: { outcome: "proposal_created", url: "https://private.example" } })).toThrow();
+  });
 });

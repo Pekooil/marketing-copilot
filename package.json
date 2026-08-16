@@ -13,11 +13,12 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm test:unit && pnpm test:component && pnpm test:integration && pnpm test:isolation",
+    "test": "pnpm test:unit && pnpm test:component && pnpm test:integration && pnpm test:isolation && pnpm test:evaluation",
     "test:unit": "vitest run --project unit",
     "test:component": "vitest run --project component",
     "test:integration": "vitest run --project integration",
     "test:isolation": "vitest run --project isolation",
+    "test:evaluation": "vitest run --project evaluation",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:release": "pnpm lint && pnpm typecheck && pnpm schema:check && pnpm migration:check && pnpm test && pnpm build && pnpm test:e2e",
@@ -30,6 +31,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "demo:sprint1": "node scripts/sprint1-demo.mjs",
+    "demo:sprint2": "node scripts/sprint2-demo.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm schema:check && pnpm migration:check && pnpm test && pnpm build"
   },
   "dependencies": {

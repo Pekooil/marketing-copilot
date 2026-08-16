@@ -16,7 +16,9 @@ export const analyticsEventSchema = z.discriminatedUnion("name", [
   eventBase.extend({ name: z.literal("onboarding_step_viewed"), properties: z.object({ step: stepSchema }).strict() }),
   eventBase.extend({ name: z.literal("onboarding_step_completed"), properties: z.object({ step: stepSchema, durationBucket: z.enum(["under_30s", "30s_to_2m", "over_2m"]) }).strict() }),
   eventBase.extend({ name: z.literal("onboarding_drop_off"), properties: z.object({ step: stepSchema, reason: z.enum(["navigate_away", "session_end", "validation_blocked"]) }).strict() }),
-  eventBase.extend({ name: z.literal("safe_error"), properties: z.object({ area: z.enum(["auth", "onboarding", "mutation"]), errorClass: z.string().regex(/^[A-Z0-9_]{2,80}$/) }).strict() }),
+  eventBase.extend({ name: z.literal("product_url_analyzed"), properties: z.object({ outcome: z.enum(["proposal_created", "blocked_unsafe_url", "fetch_failed", "extraction_failed"]), redirectBucket: z.enum(["none", "one", "multiple"]).optional() }).strict() }),
+  eventBase.extend({ name: z.literal("product_understanding_verified"), properties: z.object({ correctedFields: z.array(z.enum(["company_name", "product_summary", "target_customer"])).max(3), sourceCount: z.number().int().min(1).max(20) }).strict() }),
+  eventBase.extend({ name: z.literal("safe_error"), properties: z.object({ area: z.enum(["auth", "onboarding", "mutation", "product_understanding"]), errorClass: z.string().regex(/^[A-Z0-9_]{2,80}$/) }).strict() }),
 ]);
 
 export type AnalyticsEvent = z.infer<typeof analyticsEventSchema>;

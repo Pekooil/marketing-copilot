@@ -14,6 +14,11 @@ test("protected onboarding fails closed without a valid session", async ({ page 
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
 });
 
+test("protected product understanding fails closed without a valid session", async ({ page }) => {
+  await page.goto("/product-understanding");
+  await expect(page).toHaveURL(/\/auth\/sign-in\?next=%2Fproduct-understanding/);
+});
+
 test("onboarding rejects vague goals and completes a five-hour/$100 review", async ({ page }) => {
   await page.goto("/test-support/onboarding");
   await page.getByLabel(/Workspace name/).fill("Acme workspace");
@@ -38,4 +43,16 @@ test("onboarding rejects vague goals and completes a five-hour/$100 review", asy
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page.getByText(/5 hours\/week · USD 100 · low risk/i)).toBeVisible();
   await expect(page.getByText(/cannot authorize external sending/i)).toBeVisible();
+});
+
+test("founder reviews evidence and creates a verified context snapshot", async ({ page }) => {
+  await page.goto("/test-support/product-understanding");
+  await page.getByLabel("Public product URL").fill("https://calyxa.example/");
+  await page.getByRole("button", { name: "Analyze page" }).click();
+  await expect(page.getByText("Founder verification required")).toBeVisible();
+  await expect(page.getByText("No verified snapshot yet")).toBeVisible();
+  await page.getByLabel("Company name").fill("Calyxa Learning");
+  await page.getByRole("button", { name: "Verify and create context snapshot" }).click();
+  await expect(page.getByRole("heading", { name: "Calyxa Learning" })).toBeVisible();
+  await expect(page.getByText("v2")).toBeVisible();
 });

@@ -265,6 +265,70 @@ try {
   assert(state.activated === true && state.step === 3, "Onboarding activation did not persist");
   passed.push("onboarding profile, objective, resources, and activation");
 
+  const proposalRequest = randomUUID();
+  const productCandidate = {
+    companyName: {
+      value: "Gate Test Company",
+      verificationState: "evidence_supported",
+      confidence: 0.86,
+      evidence: [{ selector: "page title", quote: "Gate Test Company" }],
+    },
+    productSummary: {
+      value: "Evidence-backed growth decisions for technical founders.",
+      verificationState: "evidence_supported",
+      confidence: 0.9,
+      evidence: [{ selector: "meta description", quote: "Evidence-backed growth decisions for technical founders." }],
+    },
+  };
+  let productState = await asAuthenticated(founderA, async (transaction) => {
+    const [row] = await transaction`
+      select public.save_product_understanding_proposal(
+        ${workspaceA}, ${proposalRequest}, ${`product-${proposalRequest}`},
+        'https://gate.example/', 'https://gate.example/', ${"a".repeat(64)},
+        '2026-08-16T12:00:00.000Z'::timestamptz,
+        ${sql.json({ title: "Gate Test Company", retainedRawBody: false })},
+        ${sql.json(productCandidate)}, 'deterministic-html-v1'
+      ) as state
+    `;
+    return row.state;
+  });
+  assert(
+    productState.proposal?.candidate?.companyName?.verificationState === "evidence_supported" &&
+      !productState.verifiedSnapshot,
+    "Analysis incorrectly created verified context",
+  );
+
+  const verificationRequest = randomUUID();
+  productState = await asAuthenticated(founderA, async (transaction) => {
+    const [row] = await transaction`
+      select public.verify_product_understanding(
+        ${workspaceA}, ${productState.proposal.id}, ${productState.profileVersion},
+        'Gate Test Company', 'Evidence-backed growth decisions for technical founders.',
+        'Technical founders', ${verificationRequest}, ${`verify-${verificationRequest}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  assert(
+    productState.verifiedSnapshot?.profileVersion === state.versions.profile + 1 &&
+      productState.verifiedSnapshot?.sourceIds?.length === 1,
+    "Founder verification did not create a sourced context snapshot",
+  );
+  passed.push("evidence proposal remains unverified until founder context snapshot");
+
+  await expectDatabaseError("source evidence update blocked", "55000", () =>
+    asWorker(workspaceA, (transaction) => transaction`
+      update app.source_record set metadata = '{"changed":true}'::jsonb
+      where id = ${productState.proposal.source.id}
+    `),
+  );
+
+  await expectDatabaseError("product understanding cross-tenant load denied", "42501", () =>
+    asAuthenticated(founderA, (transaction) => transaction`
+      select public.get_product_understanding_state(${workspaceB})
+    `),
+  );
+
   await expectDatabaseError("onboarding cross-tenant load denied", "42501", () =>
     asAuthenticated(founderA, (transaction) => transaction`
       select public.get_onboarding_state(${workspaceB})

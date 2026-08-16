@@ -14,5 +14,10 @@
 | Onboarding vague goal/zero baseline/resume | Component + Playwright |
 | Onboarding server save/resume and stale-write safety | Authenticated RPC contract + raw DB gate pending runtime |
 | Analytics schema excludes entered content | Unit |
+| URL analysis accepts only pinned public HTTPS addresses and safe redirects | URL/fetch unit + adversarial evaluation |
+| Extracted claims remain unverified and source-grounded | Extraction unit + evaluation + migration contract |
+| Source/proposal/review/context history is immutable | Migration contract + raw DB gate |
+| Product-understanding records cannot cross tenants | Isolation policy contract + raw authenticated DB gate |
+| Founder correction creates one attributable profile version and context snapshot | Component + RPC contract + raw DB gate |
 
 The raw authenticated PostgreSQL matrix and forward/down/forward migration rehearsal are required before staging release. The executable harnesses are `pnpm db:gate` and `pnpm db:rehearse`; live evidence remains pending until `DATABASE_TEST_URL` is provisioned.

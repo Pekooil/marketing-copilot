@@ -1,8 +1,8 @@
 const foundationChecks = [
   "Private workspace boundary",
-  "One measurable objective",
-  "Versioned founder constraints",
-  "Every mutation attributable",
+  "Source-linked product claims",
+  "Founder verification required",
+  "Immutable context snapshots",
 ];
 
 export default function HomePage() {
@@ -13,22 +13,22 @@ export default function HomePage() {
           AI Marketing Copilot
         </p>
         <span className="rounded-full border border-[#b7cec5] bg-[#e4f0eb] px-3 py-1 text-xs font-medium text-[var(--accent-strong)]">
-          Sprint 1 foundation
+          Sprint 2 context
         </span>
       </header>
 
       <section className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1.25fr_0.75fr] lg:py-24">
         <div>
           <p className="mb-5 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-            Secure workspace first
+            Verified context first
           </p>
           <h1 className="max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.045em] sm:text-6xl">
             A calm operating system for evidence-backed growth decisions.
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-            This foundation intentionally starts with identity, tenancy, goals,
-            constraints, and an audit trail. Recommendations arrive only after
-            the context can be trusted.
+            Start with a private workspace, inspect the public source behind each
+            proposed company claim, and correct it before anything becomes trusted
+            context. Recommendations arrive only after founder verification.
           </p>
         </div>
 

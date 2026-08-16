@@ -1,6 +1,6 @@
 # Planning index
 
-This package converts the product source of truth into decision-ready, no-code implementation planning. `Proposed` means the recommendation is ready for review but has not been accepted. Sprint 1 remains conditional on the Sprint 0 exit gate.
+This package holds the product source of truth, implementation contracts, and release evidence. Sprint 2 is technically implemented; its live database and founder acceptance gates remain pending.
 
 ## Source and decision controls
 
@@ -18,6 +18,7 @@ This package converts the product source of truth into decision-ready, no-code i
 
 - [Sprint 0 preparation workspace](sprint-0/README.md)
 - [Sprint 1 implementation workspace](sprint-1/README.md)
+- [Sprint 2 implementation workspace](sprint-2/README.md)
 - [Sprint 0–12 purpose roadmap](planning/sprint-roadmap.md)
 - [Dependency-ordered vertical-slice plan](planning/vertical-slice-plan.md)
 - [Sprint 0 ticket plan](planning/sprint-0-tickets.md)
