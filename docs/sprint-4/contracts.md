@@ -21,3 +21,9 @@ A numeric zero remains current. A null value becomes unknown. Raw events, person
 Request identity is derived from connection, metric definition, pinned Endpoint version, window, and segment; atomic commit identity also includes normalized aggregate content. Execution and freshness timestamps do not duplicate an unchanged aggregate, while a changed value remains eligible to create traceable conflicting evidence. Provider execution ID, Endpoint reference, response content hash, and checkpoint form the source lineage. Credential, permission, mapping, rate-limit, transient, and invalid-response failures have distinct safe classes.
 
 US and EU Cloud are supported. Self-hosted PostHog, Batch Exports, arbitrary insights, automated mapping approval, background schedules, and raw-event processing are outside this Sprint 4 slice.
+
+## Credential boundary
+
+OAuth access and refresh tokens are stored as one encrypted JSON value in Supabase Vault. The application tables retain only the Vault secret UUID, expiry, rotation time, and revocation time. Browser roles cannot execute the Vault wrapper functions or read `app.secret_reference`. The `app_worker` role also has no direct Vault-schema or secret-reference-table access; a transaction that has assumed that role and set the exact workspace scope can create, decrypt, rotate, or delete a connector secret only through the security-definer wrappers.
+
+Rotation updates the same expected Vault UUID so a failed refresh cannot orphan a second credential. Revocation deletes the Vault row and marks the application reference and connection revoked in the same database transaction. Historical aggregate evidence is intentionally retained. Supabase documents that Vault secrets are authenticated and encrypted at rest with a project key managed separately from the database: <https://supabase.com/docs/guides/database/vault>

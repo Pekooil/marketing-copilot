@@ -435,8 +435,10 @@ try {
     return row.state;
   });
   if (existingConnectorState.connection?.status !== "revoked" && existingConnectorState.connection?.id) {
-    await asAuthenticated(founderA, (transaction) => transaction`
-      select public.revoke_connector_connection(${workspaceA},${existingConnectorState.connection.id},${randomUUID()})
+    await asWorker(workspaceA, (transaction) => transaction`
+      select app.revoke_posthog_secret_vault(
+        ${workspaceA},${existingConnectorState.connection.id},${founderA},${randomUUID()}
+      )
     `);
   }
   const connectorProjectId = String(Date.now());
@@ -451,11 +453,41 @@ try {
   });
   const connectionId = connectorState.connection?.id;
   assert(connectionId && connectorState.connection.status === "pending", "PostHog connection did not start pending");
+  const firstTokenSet = {
+    accessToken: `pha_gate_access_${randomUUID().replaceAll("-", "")}`,
+    refreshToken: `phr_gate_refresh_${randomUUID().replaceAll("-", "")}`,
+    expiresAt: "2099-09-30T00:00:00.000Z",
+  };
+  const [vaultWrite] = await asWorker(workspaceA, (transaction) => transaction`
+    select app.complete_posthog_connection_vault(
+      ${workspaceA},${connectionId},${founderA},${sql.json(firstTokenSet)}
+    ) as vault_id
+  `);
+  assert(/^[0-9a-f-]{36}$/i.test(vaultWrite.vault_id), "Supabase Vault did not return an opaque UUID reference");
+  const [vaultRead] = await asWorker(workspaceA, (transaction) => transaction`
+    select app.read_posthog_secret(${workspaceA},${connectionId}) as token_set
+  `);
+  assert(vaultRead.token_set.accessToken === firstTokenSet.accessToken && vaultRead.token_set.refreshToken === firstTokenSet.refreshToken, "Worker could not read the encrypted PostHog token set");
+  const [opaqueReference] = await sql`
+    select vault_provider,vault_key_ref from app.secret_reference
+    where workspace_id=${workspaceA} and connection_id=${connectionId}
+  `;
+  assert(opaqueReference?.vault_provider === "supabase-vault-v1" && opaqueReference.vault_key_ref === vaultWrite.vault_id && !/pha_|phr_/.test(opaqueReference.vault_key_ref), "Application tables contain more than an opaque Vault UUID");
+  const rotatedTokenSet = {
+    accessToken: `pha_gate_rotated_${randomUUID().replaceAll("-", "")}`,
+    refreshToken: `phr_gate_rotated_${randomUUID().replaceAll("-", "")}`,
+    expiresAt: "2099-10-31T00:00:00.000Z",
+  };
   await asWorker(workspaceA, (transaction) => transaction`
-    select app.complete_posthog_connection(
-      ${workspaceA},${connectionId},${founderA},'managed-http-v1',${`vault:gate:${randomUUID()}`},'2099-09-30T00:00:00.000Z'
+    select app.rotate_posthog_secret_vault(
+      ${workspaceA},${connectionId},${founderA},${vaultWrite.vault_id},${sql.json(rotatedTokenSet)}
     )
   `);
+  const [vaultReadAfterRotation] = await asWorker(workspaceA, (transaction) => transaction`
+    select app.read_posthog_secret(${workspaceA},${connectionId}) as token_set
+  `);
+  assert(vaultReadAfterRotation.token_set.accessToken === rotatedTokenSet.accessToken && vaultReadAfterRotation.token_set.refreshToken === rotatedTokenSet.refreshToken, "Vault rotation did not replace the token set atomically");
+  passed.push("PostHog credentials stay encrypted behind an opaque Supabase Vault UUID");
   connectorState = await asAuthenticated(founderA, async (transaction) => {
     const requestId = randomUUID();
     const [row] = await transaction`
@@ -561,6 +593,18 @@ try {
   await expectDatabaseError("connector cross-tenant load denied", "42501", () =>
     asAuthenticated(founderA, (transaction) => transaction`select public.get_connector_workspace_state(${workspaceB})`),
   );
+  await expectDatabaseError("authenticated vault read denied", "42501", () =>
+    asAuthenticated(founderA, (transaction) => transaction`select app.read_posthog_secret(${workspaceA},${connectionId})`),
+  );
+  await asWorker(workspaceA, (transaction) => transaction`
+    select app.revoke_posthog_secret_vault(${workspaceA},${connectionId},${founderA},${randomUUID()})
+  `);
+  const [[revokedConnector], [remainingVaultSecret]] = await Promise.all([
+    sql`select status from app.connector_connection where id=${connectionId}`,
+    sql`select count(*)::integer as count from vault.secrets where id=${vaultWrite.vault_id}`,
+  ]);
+  assert(revokedConnector?.status === "revoked" && remainingVaultSecret.count === 0, "Connector revocation did not delete the Vault secret atomically");
+  passed.push("PostHog revocation deletes the Vault secret and preserves evidence");
 
   await expectDatabaseError("metric observation update blocked", "55000", () =>
     asWorker(workspaceA, (transaction) => transaction`

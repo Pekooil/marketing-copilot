@@ -4,10 +4,11 @@ import postgres from "postgres";
 import { z } from "zod";
 
 import { connectorConnectionInputSchema, connectorSnapshotSchema, endpointMappingInputSchema } from "./contracts";
+import { posthogTokenSetSchema, type PosthogTokenSet } from "./token-set";
 
 const contextSchema = z.object({
   connection: connectorConnectionInputSchema.extend({ id: z.uuid() }),
-  secretReference: z.object({ vaultProvider: z.literal("managed-http-v1"), vaultKeyRef: z.string().min(8), expiresAt: z.iso.datetime().nullable() }),
+  secretReference: z.object({ vaultProvider: z.literal("supabase-vault-v1"), vaultKeyRef: z.uuid(), expiresAt: z.iso.datetime().nullable() }),
   mappings: z.array(endpointMappingInputSchema),
 });
 
@@ -34,10 +35,18 @@ export async function loadConnectorWorkerContext(databaseUrl: string, workspaceI
   });
 }
 
-export async function completeConnector(databaseUrl: string, input: { workspaceId: string; connectionId: string; actorId: string; vaultKeyRef: string; expiresAt: string }) {
+export async function storeConnectorSecret(databaseUrl: string, input: { workspaceId: string; connectionId: string; actorId: string; tokenSet: PosthogTokenSet }) {
+  const tokenSet = posthogTokenSetSchema.parse(input.tokenSet);
   return withConnectorWorker(databaseUrl, input.workspaceId, (transaction) => transaction`
-    select app.complete_posthog_connection(${input.workspaceId},${input.connectionId},${input.actorId},'managed-http-v1',${input.vaultKeyRef},${input.expiresAt})
+    select app.complete_posthog_connection_vault(${input.workspaceId},${input.connectionId},${input.actorId},${transaction.json(tokenSet)})
   `);
+}
+
+export async function readConnectorSecret(databaseUrl: string, workspaceId: string, connectionId: string) {
+  return withConnectorWorker(databaseUrl, workspaceId, async (transaction) => {
+    const [row] = await transaction`select app.read_posthog_secret(${workspaceId},${connectionId}) as token_set`;
+    return posthogTokenSetSchema.parse(row.token_set);
+  });
 }
 
 export async function commitConnectorSync(databaseUrl: string, input: { workspaceId: string; connectionId: string; actorId: string; idempotencyKey: string; requestId: string; windowStart: string; windowEnd: string; segment: string; results: Array<z.infer<typeof connectorSnapshotSchema> & { metricDefinitionId: string; endpointName: string; endpointVersion: number }> }) {
@@ -52,8 +61,15 @@ export async function recordConnectorFailure(databaseUrl: string, input: { works
   `);
 }
 
-export async function rotateConnectorSecret(databaseUrl: string, input: { workspaceId: string; connectionId: string; actorId: string; expectedReference: string; nextReference: string; expiresAt: string }) {
+export async function rotateConnectorSecret(databaseUrl: string, input: { workspaceId: string; connectionId: string; actorId: string; expectedReference: string; tokenSet: PosthogTokenSet }) {
+  const tokenSet = posthogTokenSetSchema.parse(input.tokenSet);
   return withConnectorWorker(databaseUrl, input.workspaceId, (transaction) => transaction`
-    select app.rotate_posthog_secret(${input.workspaceId},${input.connectionId},${input.actorId},${input.expectedReference},${input.nextReference},${input.expiresAt})
+    select app.rotate_posthog_secret_vault(${input.workspaceId},${input.connectionId},${input.actorId},${input.expectedReference},${transaction.json(tokenSet)})
+  `);
+}
+
+export async function revokeConnectorSecret(databaseUrl: string, input: { workspaceId: string; connectionId: string; actorId: string; requestId: string }) {
+  return withConnectorWorker(databaseUrl, input.workspaceId, (transaction) => transaction`
+    select app.revoke_posthog_secret_vault(${input.workspaceId},${input.connectionId},${input.actorId},${input.requestId})
   `);
 }

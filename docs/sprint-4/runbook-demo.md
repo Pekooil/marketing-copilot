@@ -6,11 +6,9 @@ Configure these values only in the deployment environment, never in source contr
 
 - `NEXT_PUBLIC_APP_URL`: exact production HTTPS origin used by the CIMD client ID and callback.
 - `CONNECTOR_STATE_SECRET`: at least 32 random characters for sealed OAuth state.
-- `CONNECTOR_VAULT_URL`: HTTPS managed-vault API origin.
-- `CONNECTOR_VAULT_TOKEN`: server-only vault service credential.
 - `CONNECTOR_DATABASE_URL`: server-only PostgreSQL credential permitted to `SET ROLE app_worker`; use the pooled/direct mode supported by the host and never expose it to the browser.
 
-The vault API contract is `POST /v1/secrets`, `POST /v1/secrets/{reference}/read`, and `POST /v1/secrets/{reference}/revoke`. Writes return `{ "reference": "opaque-value" }`; reads return the access token, refresh token, and ISO expiry. Revocation must be idempotent, including an already-missing reference.
+For the current production deployment, set `NEXT_PUBLIC_APP_URL=https://marketing-copilot-chi.vercel.app`. Apply `20260816210000_supabase_vault.sql` to the linked Supabase database; it enables Supabase Vault and installs the worker-only credential functions. No Vault URL or Vault service token belongs in Vercel. Supabase owns the encryption key outside the application database, and the connector database credential reaches decrypted values only through the workspace-scoped security-definer functions.
 
 Host `/connectors/posthog/client-metadata` on the production domain. The document declares the exact client ID, callback, refresh grant, and `com.posthog.scopes: ["endpoint:read"]`. Optionally add PostHog's organization verification token during production verification; request verification for both US and EU if both remain supported.
 
@@ -27,13 +25,13 @@ After OAuth, discover metadata, choose an active Endpoint, review the target met
 - Missing/version-changed Endpoint: restore the pinned version or approve a new mapping version.
 - Rate limit/provider outage: wait for the provider window and retry the same bounded refresh. The latest metric is stale until committed evidence recovers.
 - Invalid row, pagination, extra rows, or scope drift: correct the Endpoint output; do not bypass adapter validation.
-- Vault unavailable: stop connector operations. Do not fall back to database or log storage for tokens.
-- Suspected credential exposure: revoke the vault reference and PostHog authorization, rotate vault service credentials, preserve audit/source history, and reconnect.
+- Vault unavailable: stop connector operations. Do not fall back to application tables, environment variables, or logs for tokens.
+- Suspected credential exposure: revoke the connector and PostHog authorization, rotate the database credential and sealed-state secret if implicated, preserve audit/source history, and reconnect.
 
 ## Rollback
 
 1. Disable access to the connector server actions or roll back the application deployment; keep manual CSV metrics available.
-2. Revoke active PostHog vault references. Historical source, observation, snapshot, and audit records remain immutable.
+2. Call the worker-only revocation function for active PostHog connections. It deletes only their Supabase Vault secrets; historical source, observation, snapshot, and audit records remain immutable.
 3. Prefer a reviewed forward database correction. Never disable RLS, mutate evidence history, or copy tokens into PostgreSQL during recovery.
 4. Destructive down migrations are for an isolated rehearsal database only.
 5. Re-run `pnpm ci`, `pnpm test:e2e`, `pnpm db:rehearse`, and `pnpm db:gate` before restoring the connector.

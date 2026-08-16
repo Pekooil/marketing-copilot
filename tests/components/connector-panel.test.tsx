@@ -95,4 +95,16 @@ describe("PostHog connector panel", () => {
     await waitFor(() => expect(onMetricsState).toHaveBeenCalledWith(staleMetrics, "PostHog is rate limiting refreshes."));
     expect(onConnectorState).toHaveBeenCalledWith(degradedState);
   });
+
+  it("allows a founder to revoke an active connection whose credential reference is unavailable", async () => {
+    const user = userEvent.setup();
+    const disconnectedState: ConnectorWorkspaceState = { ...healthyConnectorState, connection: { ...healthyConnectorState.connection!, status: "error", credentialConfigured: false, lastErrorCode: "CONNECTOR_RUNTIME_UNAVAILABLE" } };
+    const revokedState: ConnectorWorkspaceState = { ...emptyConnectorState, connection: { ...disconnectedState.connection!, status: "revoked" } };
+    const revokeAction = vi.fn().mockResolvedValue({ ok: true, state: revokedState, message: "PostHog access revoked." });
+    render(<ConnectorPanel {...baseProps} connectorState={disconnectedState} revokeAction={revokeAction} />);
+    const button = screen.getByRole("button", { name: "Revoke access" });
+    expect(button).toBeEnabled();
+    await user.click(button);
+    await waitFor(() => expect(revokeAction).toHaveBeenCalledWith(expect.objectContaining({ workspaceId, connectionId })));
+  });
 });

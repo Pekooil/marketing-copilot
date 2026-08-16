@@ -12,8 +12,7 @@ import { sealOAuthState } from "@/connectors/oauth-state";
 import { PosthogEndpointAdapter } from "@/connectors/posthog/endpoint-adapter";
 import { createPosthogAuthorizationRequest, discoverPosthogOAuthServer, refreshPosthogOAuthToken } from "@/connectors/posthog/oauth";
 import { getConnectorRuntimeConfig } from "@/connectors/runtime-config";
-import { ManagedConnectorVault } from "@/connectors/vault";
-import { commitConnectorSync, loadConnectorWorkerContext, recordConnectorFailure, rotateConnectorSecret } from "@/connectors/worker-db";
+import { commitConnectorSync, loadConnectorWorkerContext, readConnectorSecret, recordConnectorFailure, revokeConnectorSecret, rotateConnectorSecret } from "@/connectors/worker-db";
 import { connectorWorkspaceStateSchema, refreshConnectorInputSchema, saveConnectorMappingInputSchema, startConnectionInputSchema, type ConnectorWorkspaceState, type DiscoverConnectorSourcesAction, type RefreshConnectorAction, type RevokeConnectorAction, type SaveConnectorMappingAction, type StartConnectionAction } from "@/connectors/workspace-schema";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createLogger } from "@/observability/logger";
@@ -147,12 +146,11 @@ export const refreshPosthogMetrics: RefreshConnectorAction = async (rawInput) =>
 export const revokePosthogConnection: RevokeConnectorAction = async (rawInput) => {
   try {
     const input = z.object({ workspaceId: z.uuid(), connectionId: z.uuid(), requestId: z.uuid() }).parse(rawInput);
-    await requireIdentity();
+    const identity = await requireIdentity();
     const config = getConnectorRuntimeConfig();
-    const context = await loadConnectorWorkerContext(config.databaseUrl, input.workspaceId, input.connectionId);
-    await new ManagedConnectorVault({ url: config.vaultUrl, token: config.vaultToken }).revoke(context.secretReference.vaultKeyRef);
+    await revokeConnectorSecret(config.databaseUrl, { ...input, actorId: identity.userId });
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase.rpc("revoke_connector_connection", { p_workspace_id: input.workspaceId, p_connection_id: input.connectionId, p_request_id: input.requestId });
+    const { data, error } = await supabase.rpc("get_connector_workspace_state", { p_workspace_id: input.workspaceId });
     if (error) return rpcFailure(error.code);
     revalidatePath("/metrics");
     return { ok: true, state: connectorWorkspaceStateSchema.parse(data), message: "PostHog access revoked. Historical aggregate evidence was preserved." };
@@ -175,27 +173,16 @@ function safeFailure(event: string, error: unknown): { ok: false; message: strin
 }
 
 async function loadFreshTokenSet(config: ReturnType<typeof getConnectorRuntimeConfig>, context: Awaited<ReturnType<typeof loadConnectorWorkerContext>>, workspaceId: string, actorId: string) {
-  const vault = new ManagedConnectorVault({ url: config.vaultUrl, token: config.vaultToken });
-  const current = await vault.read(context.secretReference.vaultKeyRef);
+  const current = await readConnectorSecret(config.databaseUrl, workspaceId, context.connection.id);
   if (Date.parse(current.expiresAt) > Date.now() + 60_000) return current;
   const metadata = await discoverPosthogOAuthServer();
   const refreshed = await refreshPosthogOAuthToken({ tokenEndpoint: metadata.token_endpoint, clientId: config.clientId, refreshToken: current.refreshToken });
-  const nextReference = await vault.write(context.connection.id, refreshed);
-  try {
-    await rotateConnectorSecret(config.databaseUrl, {
-      workspaceId,
-      connectionId: context.connection.id,
-      actorId,
-      expectedReference: context.secretReference.vaultKeyRef,
-      nextReference,
-      expiresAt: refreshed.expiresAt,
-    });
-  } catch (error) {
-    if (nextReference !== context.secretReference.vaultKeyRef) await vault.revoke(nextReference).catch(() => undefined);
-    throw error;
-  }
-  if (nextReference !== context.secretReference.vaultKeyRef) {
-    await vault.revoke(context.secretReference.vaultKeyRef).catch(() => logger.warn({ event: "connector.secret.old_revoke", result: "failed", errorClass: "CONNECTOR_VAULT_UNAVAILABLE" }));
-  }
+  await rotateConnectorSecret(config.databaseUrl, {
+    workspaceId,
+    connectionId: context.connection.id,
+    actorId,
+    expectedReference: context.secretReference.vaultKeyRef,
+    tokenSet: refreshed,
+  });
   return refreshed;
 }

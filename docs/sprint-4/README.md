@@ -1,13 +1,13 @@
 # Sprint 4 — PostHog read-only connection and reliable sync
 
-**Status:** Technical implementation complete; secure runtime, live database, and founder acceptance gates pending
+**Status:** Technical implementation and Supabase Vault boundary complete; live database provisioning and founder acceptance gates pending
 **Implementation date:** August 16, 2026
 **Roadmap outcome:** A founder connects a PostHog Cloud project, pins aggregate Endpoints to approved metrics, refreshes without duplicate observations, sees failures become stale, and recovers with full source lineage.
 
 ## Implemented slice
 
 - Region-agnostic PostHog OAuth using a hosted Client ID Metadata Document, PKCE, sealed expiring state, and only `endpoint:read`.
-- Managed-vault storage for access/refresh tokens. PostgreSQL stores only an opaque vault reference; expired access tokens rotate with an expected-old-reference transaction.
+- Supabase Vault storage for access/refresh tokens. The application schema stores only an opaque Vault UUID; worker-only security-definer functions atomically create, read, rotate, and delete the encrypted token set.
 - US and EU Cloud aggregate Endpoint discovery and execution. Arbitrary `/query`, HogQL, persons, events, raw rows, self-hosted instances, and background schedules fail outside the capability contract.
 - Founder-approved, immutable mappings that pin an Endpoint version to an approved metric definition.
 - Explicit date/segment refreshes limited to 366 days. Every result must be exactly one row with the approved window, segment, version, and five-column aggregate contract.
@@ -33,7 +33,7 @@
 - [x] Failure becomes stale immediately in the UI; exact committed evidence can recover current state without duplication.
 - [x] Cross-tenant connector state and browser-submitted provider commits fail closed by contract.
 - [x] The browser fixture demonstrates mapping, first refresh, exact replay, rate-limit degradation, stale output, and recovery.
-- [ ] Production HTTPS origin, managed vault, connector database role, and PostHog CIMD verification token are provisioned.
+- [ ] The production HTTPS origin, Supabase Vault migration, connector database role, sealed-state secret, and optional PostHog CIMD verification token are provisioned.
 - [ ] Forward/prior/down-forward migration rehearsal and raw connector scenarios pass on the dedicated non-production database.
 - [ ] A founder accepts the PostHog authorization, Endpoint creation template, mapping, failure, recovery, lineage, and revocation flow on staging.
 

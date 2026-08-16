@@ -10,7 +10,7 @@ V1 guarantees manual/CSV metrics and proposes PostHog as the first live analytic
 
 ## Decision
 
-Create a provider-neutral `ConnectorAdapter` contract and implement only manual/CSV plus PostHog in V1. PostHog authentication uses OAuth 2.0 with the region-agnostic endpoint and Client ID Metadata Document, minimal read scopes, short-lived access tokens, encrypted refresh-token references, and explicit revocation.
+Create a provider-neutral `ConnectorAdapter` contract and implement only manual/CSV plus PostHog in V1. PostHog authentication uses OAuth 2.0 with the region-agnostic endpoint and Client ID Metadata Document, minimal read scopes, short-lived access tokens, Supabase Vault for the encrypted token set, and explicit revocation.
 
 The accepted PostHog data plane is founder-created aggregate Endpoints, executed only on an explicit bounded refresh. Each founder-approved metric mapping pins an Endpoint version. Recurring `/query`, arbitrary HogQL, raw events, persons, and background schedules are forbidden.
 
@@ -44,7 +44,7 @@ Model-facing code cannot submit arbitrary SQL, URLs, event properties, or provid
 
 ## Data and secret rules
 
-- Store tokens only through `secret_reference`; never log or send them to models.
+- Store token material only in Supabase Vault; `app.secret_reference` stores the opaque Vault UUID and lifecycle metadata. Never log tokens or send them to models.
 - Prefer aggregate counts and rates. If Batch Exports are required, process raw data transiently in an isolated worker and persist only allowed aggregates plus provenance.
 - A sync is append-only at the source/checkpoint layer and upserts derived snapshots by deterministic idempotency key.
 - Source disagreement creates `conflicted`; connection failure creates `stale`; neither becomes zero.
@@ -55,7 +55,7 @@ Model-facing code cannot submit arbitrary SQL, URLs, event properties, or provid
 1. Official PostHog documentation provides OAuth/CIMD, scope ceilings, short-lived access tokens, refresh tokens, and region-agnostic US/EU routing.
 2. Official Endpoints APIs provide listing/execution, pinned versions, materialized execution, columns, pagination state, and execution identifiers with `endpoint:read`.
 3. The adapter accepts exactly one bounded aggregate row and rejects pagination, version drift, scope drift, invalid columns, and raw/query paths.
-4. Token material is held only by the managed vault; the application database stores opaque references and rejects token prefixes.
+4. Token material is encrypted in Supabase Vault behind worker-only, workspace-scoped functions; application tables store only opaque UUID references and reject token prefixes.
 5. Automated evaluation, browser, migration, isolation, and raw-database gates cover replay, stale failure, recovery, lineage, and tenant denial. Live database evidence remains a deployment gate.
 
 ## Rollback
