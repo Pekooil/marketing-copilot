@@ -18,7 +18,11 @@ export const analyticsEventSchema = z.discriminatedUnion("name", [
   eventBase.extend({ name: z.literal("onboarding_drop_off"), properties: z.object({ step: stepSchema, reason: z.enum(["navigate_away", "session_end", "validation_blocked"]) }).strict() }),
   eventBase.extend({ name: z.literal("product_url_analyzed"), properties: z.object({ outcome: z.enum(["proposal_created", "blocked_unsafe_url", "fetch_failed", "extraction_failed"]), redirectBucket: z.enum(["none", "one", "multiple"]).optional() }).strict() }),
   eventBase.extend({ name: z.literal("product_understanding_verified"), properties: z.object({ correctedFields: z.array(z.enum(["company_name", "product_summary", "target_customer"])).max(3), sourceCount: z.number().int().min(1).max(20) }).strict() }),
-  eventBase.extend({ name: z.literal("safe_error"), properties: z.object({ area: z.enum(["auth", "onboarding", "mutation", "product_understanding"]), errorClass: z.string().regex(/^[A-Z0-9_]{2,80}$/) }).strict() }),
+  eventBase.extend({ name: z.literal("metric_definition_saved"), properties: z.object({ version: z.enum(["first", "revision"]), unit: z.enum(["count", "percentage", "currency_minor", "seconds", "custom"]), aggregation: z.enum(["count", "sum", "average", "unique", "ratio", "latest"]) }).strict() }),
+  eventBase.extend({ name: z.literal("manual_metrics_previewed"), properties: z.object({ outcome: z.enum(["ready", "issues", "rejected"]), rowCountBucket: z.enum(["one", "two_to_ten", "eleven_to_one_hundred", "over_one_hundred"]), issueCountBucket: z.enum(["none", "one", "two_to_ten", "over_ten"]) }).strict() }),
+  eventBase.extend({ name: z.literal("manual_metrics_imported"), properties: z.object({ rowCountBucket: z.enum(["one", "two_to_ten", "eleven_to_one_hundred", "over_one_hundred"]), qualityStates: z.array(z.enum(["current", "stale", "missing", "conflicted", "invalid", "unknown"])).min(1).max(6) }).strict() }),
+  eventBase.extend({ name: z.literal("funnel_saved"), properties: z.object({ version: z.enum(["first", "revision"]), includedStageCount: z.number().int().min(2).max(7) }).strict() }),
+  eventBase.extend({ name: z.literal("safe_error"), properties: z.object({ area: z.enum(["auth", "onboarding", "mutation", "product_understanding", "metrics"]), errorClass: z.string().regex(/^[A-Z0-9_]{2,80}$/) }).strict() }),
 ]);
 
 export type AnalyticsEvent = z.infer<typeof analyticsEventSchema>;

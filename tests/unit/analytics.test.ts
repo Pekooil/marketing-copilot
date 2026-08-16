@@ -42,4 +42,12 @@ describe("foundation analytics", () => {
     expect(analyticsEventSchema.parse({ ...base, name: "product_url_analyzed", properties: { outcome: "proposal_created", redirectBucket: "one" } })).toBeTruthy();
     expect(() => analyticsEventSchema.parse({ ...base, name: "product_url_analyzed", properties: { outcome: "proposal_created", url: "https://private.example" } })).toThrow();
   });
+
+  it("allows only bounded, content-free manual-metrics dimensions", () => {
+    const base = { eventId: "10000000-0000-4000-8000-000000000004", workspaceHash: "a".repeat(20), userHash: "b".repeat(20), occurredAt: new Date().toISOString() };
+    expect(analyticsEventSchema.parse({ ...base, name: "manual_metrics_imported", properties: { rowCountBucket: "two_to_ten", qualityStates: ["current", "unknown"] } })).toBeTruthy();
+    expect(analyticsEventSchema.parse({ ...base, name: "funnel_saved", properties: { version: "first", includedStageCount: 3 } })).toBeTruthy();
+    expect(() => analyticsEventSchema.parse({ ...base, name: "manual_metrics_imported", properties: { rowCountBucket: "two_to_ten", qualityStates: ["current"], filename: "private.csv" } })).toThrow();
+    expect(() => analyticsEventSchema.parse({ ...base, name: "metric_definition_saved", properties: { version: "first", unit: "count", aggregation: "count", metricName: "Private activation" } })).toThrow();
+  });
 });

@@ -32,4 +32,4 @@
 - [ ] Raw authenticated cross-tenant and immutable-evidence scenarios pass on the dedicated database.
 - [ ] Founder accepts the copy, evidence presentation, correction flow, and single-page extraction quality on staging.
 
-Sprint 3 remains blocked until the three live/acceptance items are recorded. The local technical suite does not substitute for those gates.
+Those live/acceptance items remain required for staging. Sprint 3 implementation continued under explicit task direction; that work does not close or substitute for the pending Sprint 2 gates.

@@ -19,6 +19,11 @@ test("protected product understanding fails closed without a valid session", asy
   await expect(page).toHaveURL(/\/auth\/sign-in\?next=%2Fproduct-understanding/);
 });
 
+test("protected manual metrics fail closed without a valid session", async ({ page }) => {
+  await page.goto("/metrics");
+  await expect(page).toHaveURL(/\/auth\/sign-in\?next=%2Fmetrics/);
+});
+
 test("onboarding rejects vague goals and completes a five-hour/$100 review", async ({ page }) => {
   await page.goto("/test-support/onboarding");
   await page.getByLabel(/Workspace name/).fill("Acme workspace");
@@ -55,4 +60,21 @@ test("founder reviews evidence and creates a verified context snapshot", async (
   await page.getByRole("button", { name: "Verify and create context snapshot" }).click();
   await expect(page.getByRole("heading", { name: "Calyxa Learning" })).toBeVisible();
   await expect(page.getByText("v2")).toBeVisible();
+});
+
+test("founder previews manual metrics and traces a funnel conversion to its source", async ({ page }) => {
+  await page.goto("/test-support/metrics");
+  await page.getByLabel("CSV file").setInputFiles({
+    name: "sprint3-demo.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("metric,value\nQualified visits,100\nActivated accounts,25"),
+  });
+  await page.getByRole("button", { name: "Preview CSV" }).click();
+  await expect(page.getByText("2 rows are valid and ready to import.")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "100" })).toBeVisible();
+  await page.getByRole("button", { name: "Import 2 rows" }).click();
+  await expect(page.getByText("25.0%")).toBeVisible();
+  await page.locator("details summary").first().click();
+  await expect(page.getByText(/sprint3-demo\.csv/).first()).toBeVisible();
+  await expect(page.getByText(/Evidence:/).first()).toBeVisible();
 });

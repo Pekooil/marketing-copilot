@@ -1,6 +1,6 @@
 # AI Marketing Copilot
 
-An evidence-backed growth operating system for technical founders. The Sprint 2 product-understanding slice is implemented behind the authenticated workspace boundary.
+An evidence-backed growth operating system for technical founders. The Sprint 3 manual-metrics and canonical-funnel slice is implemented behind the authenticated workspace boundary.
 
 ## Local development
 
@@ -22,6 +22,6 @@ Planning and decision records remain available in [the documentation index](docs
 
 - Product baseline: finalized planning source of truth, version 1.0, August 14, 2026.
 - Architecture decisions: proposed, not accepted.
-- Active delivery phase: Sprint 2 technical gate; live database and founder acceptance pending.
-- Application code: secure workspace, safe public-page analysis, provenance-aware proposal review, and verified context snapshots.
+- Active delivery phase: Sprint 3 technical gate; live database and founder acceptance pending.
+- Application code: secure workspace, verified product context, founder-approved metric contracts, bounded CSV import, source lineage, and deterministic funnel conversions.
 - External execution: out of scope for V1.

@@ -1,8 +1,8 @@
 const foundationChecks = [
   "Private workspace boundary",
-  "Source-linked product claims",
-  "Founder verification required",
-  "Immutable context snapshots",
+  "Founder-verified product context",
+  "Approved metric contracts",
+  "Traceable funnel numbers",
 ];
 
 export default function HomePage() {
@@ -13,22 +13,22 @@ export default function HomePage() {
           AI Marketing Copilot
         </p>
         <span className="rounded-full border border-[#b7cec5] bg-[#e4f0eb] px-3 py-1 text-xs font-medium text-[var(--accent-strong)]">
-          Sprint 2 context
+          Sprint 3 metrics
         </span>
       </header>
 
       <section className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1.25fr_0.75fr] lg:py-24">
         <div>
           <p className="mb-5 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-            Verified context first
+            Verified context. Trustworthy numbers.
           </p>
           <h1 className="max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.045em] sm:text-6xl">
             A calm operating system for evidence-backed growth decisions.
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-            Start with a private workspace, inspect the public source behind each
-            proposed company claim, and correct it before anything becomes trusted
-            context. Recommendations arrive only after founder verification.
+            Start with a private workspace and verified product context. Define what
+            every metric means, preview manual data before committing it, and trace
+            every funnel number back to its source.
           </p>
         </div>
 

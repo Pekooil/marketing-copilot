@@ -323,6 +323,131 @@ try {
     `),
   );
 
+  const gateRun = randomUUID().slice(0, 8);
+  const metricDefinition = (name, businessDefinition) => ({
+    name,
+    businessDefinition,
+    unit: "count",
+    customUnit: "",
+    aggregation: "unique",
+    segment: "Self-serve founders",
+    exclusions: ["Internal accounts"],
+    timezone: "UTC",
+    freshnessHours: 168,
+  });
+  let metricsState = await asAuthenticated(founderA, async (transaction) => {
+    const requestId = randomUUID();
+    const [row] = await transaction`
+      select public.save_metric_definition(
+        ${workspaceA}, null, 0,
+        ${sql.json(metricDefinition(`Gate visits ${gateRun}`, "Distinct qualified visits during the UTC week."))},
+        ${requestId}, ${`metric-visits-${requestId}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  metricsState = await asAuthenticated(founderA, async (transaction) => {
+    const requestId = randomUUID();
+    const [row] = await transaction`
+      select public.save_metric_definition(
+        ${workspaceA}, null, 0,
+        ${sql.json(metricDefinition(`Gate activation ${gateRun}`, "Accounts completing the founder-approved value event during the UTC week."))},
+        ${requestId}, ${`metric-activation-${requestId}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  const visitsMetric = metricsState.definitions.find((definition) => definition.name === `Gate visits ${gateRun}`);
+  const activationMetric = metricsState.definitions.find((definition) => definition.name === `Gate activation ${gateRun}`);
+  assert(visitsMetric && activationMetric, "Metric definitions were not persisted");
+  passed.push("founder-approved versioned metric definitions");
+
+  const firstSourceHash = randomUUID().replaceAll("-", "").repeat(2);
+  const windowStart = "2026-08-01T00:00:00.000Z";
+  const windowEnd = "2026-08-08T00:00:00.000Z";
+  const freshAsOf = "2026-08-08T01:00:00.000Z";
+  const firstRows = [
+    { rowNumber: 2, rowKey: randomUUID().replaceAll("-", "").repeat(2), metricDefinitionId: visitsMetric.id, value: 100, windowStart, windowEnd, segment: "Self-serve founders", freshAsOf, qualityState: "current", sourceNote: "Gate fixture" },
+    { rowNumber: 3, rowKey: randomUUID().replaceAll("-", "").repeat(2), metricDefinitionId: activationMetric.id, value: 0, windowStart, windowEnd, segment: "Self-serve founders", freshAsOf, qualityState: "current", sourceNote: "Gate fixture" },
+  ];
+  const importRequest = randomUUID();
+  metricsState = await asAuthenticated(founderA, async (transaction) => {
+    const [row] = await transaction`
+      select public.commit_manual_metric_import(
+        ${workspaceA}, 'gate-metrics.csv', ${firstSourceHash}, ${sql.json(firstRows)},
+        ${importRequest}, ${`manual-import-${importRequest}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  const zeroSnapshot = metricsState.snapshots.find((snapshot) => snapshot.metricDefinitionId === activationMetric.id);
+  assert(zeroSnapshot?.value === 0 && zeroSnapshot.qualityState === "current", "Observed zero became missing or unknown");
+  const [{ count: observationCountBeforeReplay }] = await sql`
+    select count(*)::integer as count from app.metric_observation
+    where workspace_id = ${workspaceA} and metric_definition_id in (${visitsMetric.id}, ${activationMetric.id})
+  `;
+  const replayRequest = randomUUID();
+  await asAuthenticated(founderA, (transaction) => transaction`
+    select public.commit_manual_metric_import(
+      ${workspaceA}, 'gate-metrics.csv', ${firstSourceHash}, ${sql.json(firstRows)},
+      ${replayRequest}, ${`manual-import-${replayRequest}`}
+    )
+  `);
+  const [{ count: observationCountAfterReplay }] = await sql`
+    select count(*)::integer as count from app.metric_observation
+    where workspace_id = ${workspaceA} and metric_definition_id in (${visitsMetric.id}, ${activationMetric.id})
+  `;
+  assert(observationCountAfterReplay === observationCountBeforeReplay, "Manual import replay duplicated observations");
+  passed.push("manual import replay and observed-zero integrity");
+
+  const conflictRequest = randomUUID();
+  metricsState = await asAuthenticated(founderA, async (transaction) => {
+    const [row] = await transaction`
+      select public.commit_manual_metric_import(
+        ${workspaceA}, 'gate-conflict.csv', ${randomUUID().replaceAll("-", "").repeat(2)},
+        ${sql.json([{ ...firstRows[1], rowKey: randomUUID().replaceAll("-", "").repeat(2), value: 5, sourceNote: "Conflicting gate fixture" }])},
+        ${conflictRequest}, ${`manual-import-${conflictRequest}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  const conflicted = metricsState.snapshots.find((snapshot) => snapshot.metricDefinitionId === activationMetric.id);
+  assert(conflicted?.qualityState === "conflicted" && conflicted.value === null && conflicted.evidenceIds.length === 2, "Metric disagreement was not preserved as a valueless conflict with both evidence references");
+  passed.push("metric disagreement is conflicted and never averaged");
+
+  const funnelRequest = randomUUID();
+  metricsState = await asAuthenticated(founderA, async (transaction) => {
+    const [row] = await transaction`
+      select public.save_funnel_definition(
+        ${workspaceA}, ${metricsState.funnel?.version ?? 0}, 'Gate core funnel', ${sql.json([
+          { stage: "acquisition", label: "Qualified visits", definition: "A qualified founder reaches the product.", metricDefinitionId: visitsMetric.id, included: true, position: 0 },
+          { stage: "activation", label: "Activated accounts", definition: "A founder receives the defined product value.", metricDefinitionId: activationMetric.id, included: true, position: 1 },
+        ])}, ${funnelRequest}, ${`funnel-${funnelRequest}`}
+      ) as state
+    `;
+    return row.state;
+  });
+  assert(metricsState.funnel?.stages.filter((stage) => stage.included).length === 2, "Founder-approved funnel mapping was not persisted");
+  passed.push("founder-approved canonical funnel mapping");
+
+  await expectDatabaseError("metric observation update blocked", "55000", () =>
+    asWorker(workspaceA, (transaction) => transaction`
+      update app.metric_observation set source_note = 'changed'
+      where id = ${conflicted.evidenceIds[0]}
+    `),
+  );
+  await expectDatabaseError("metric snapshot delete blocked", "55000", () =>
+    asWorker(workspaceA, (transaction) => transaction`
+      delete from app.metric_snapshot where id = ${conflicted.id}
+    `),
+  );
+
+  await expectDatabaseError("metrics workspace cross-tenant load denied", "42501", () =>
+    asAuthenticated(founderA, (transaction) => transaction`
+      select public.get_metrics_workspace_state(${workspaceB})
+    `),
+  );
+
   await expectDatabaseError("product understanding cross-tenant load denied", "42501", () =>
     asAuthenticated(founderA, (transaction) => transaction`
       select public.get_product_understanding_state(${workspaceB})
