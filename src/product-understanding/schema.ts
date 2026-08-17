@@ -7,13 +7,13 @@ export const sourceSummarySchema = z.object({
   id: z.uuid(),
   url: z.url(),
   title: z.string().max(300),
-  observedAt: z.iso.datetime(),
+  observedAt: z.iso.datetime({ offset: true }),
   contentHash: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
 export const savedProposalSchema = z.object({
   id: z.uuid(),
-  createdAt: z.iso.datetime(),
+  createdAt: z.iso.datetime({ offset: true }),
   extractorVersion: z.string().min(1).max(80),
   source: sourceSummarySchema,
   candidate: productUnderstandingProposalSchema,
@@ -23,7 +23,7 @@ export const verifiedContextSnapshotSchema = z.object({
   id: z.uuid(),
   proposalId: z.uuid(),
   sequence: z.number().int().positive(),
-  createdAt: z.iso.datetime(),
+  createdAt: z.iso.datetime({ offset: true }),
   profileVersion: z.number().int().positive(),
   sourceIds: z.array(z.uuid()).min(1).max(20),
   companyProfile: z.object({
