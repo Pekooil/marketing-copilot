@@ -30,7 +30,7 @@ export const verifiedContextSnapshotSchema = z.object({
     companyName: z.string().min(1).max(200),
     website: z.url(),
     productSummary: z.string().min(1).max(2_000),
-    targetCustomer: z.string().max(2_000).optional(),
+    targetCustomer: z.string().max(2_000).nullable().optional(),
   }),
 });
 

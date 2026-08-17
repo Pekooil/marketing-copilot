@@ -44,4 +44,29 @@ describe("product understanding state schema", () => {
       "2026-08-17T01:26:26.933+00:00",
     );
   });
+
+  it("accepts a null optional target customer in a verified database snapshot", () => {
+    const state = productUnderstandingStateSchema.parse({
+      workspaceId: "a0000000-0000-4000-8000-000000000001",
+      workspaceName: "Founder workspace",
+      profileVersion: 2,
+      proposal: null,
+      verifiedSnapshot: {
+        id: "a0000000-0000-4000-8000-000000000004",
+        proposalId: "a0000000-0000-4000-8000-000000000002",
+        sequence: 1,
+        createdAt: "2026-08-17T03:31:56.508+00:00",
+        profileVersion: 2,
+        sourceIds: ["a0000000-0000-4000-8000-000000000003"],
+        companyProfile: {
+          companyName: "Calyxa",
+          website: "https://calyxa.app/",
+          productSummary: "Adaptive homework support.",
+          targetCustomer: null,
+        },
+      },
+    });
+
+    expect(state.verifiedSnapshot?.companyProfile.targetCustomer).toBeNull();
+  });
 });
