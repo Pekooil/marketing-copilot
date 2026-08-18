@@ -5,10 +5,11 @@ import { z } from "zod";
 
 import { connectorConnectionInputSchema, connectorSnapshotSchema, endpointMappingInputSchema } from "./contracts";
 import { posthogTokenSetSchema, type PosthogTokenSet } from "./token-set";
+import { databaseTimestampSchema } from "@/db/timestamp";
 
 const contextSchema = z.object({
   connection: connectorConnectionInputSchema.extend({ id: z.uuid() }),
-  secretReference: z.object({ vaultProvider: z.literal("supabase-vault-v1"), vaultKeyRef: z.uuid(), expiresAt: z.iso.datetime().nullable() }),
+  secretReference: z.object({ vaultProvider: z.literal("supabase-vault-v1"), vaultKeyRef: z.uuid(), expiresAt: databaseTimestampSchema.nullable() }),
   mappings: z.array(endpointMappingInputSchema),
 });
 

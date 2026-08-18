@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { databaseTimestampSchema } from "@/db/timestamp";
+
 import { connectorConnectionInputSchema, connectorEndpointSchema, connectorStatusSchema, endpointMappingInputSchema, syncRangeSchema } from "./contracts";
 import type { MetricsWorkspaceState } from "@/metrics/workspace-schema";
 
@@ -8,7 +10,7 @@ export const connectorConnectionSummarySchema = connectorConnectionInputSchema.e
   status: connectorStatusSchema,
   scopes: z.tuple([z.literal("endpoint:read")]),
   credentialConfigured: z.boolean(),
-  lastHealthyAt: z.iso.datetime().nullable(),
+  lastHealthyAt: databaseTimestampSchema.nullable(),
   lastErrorCode: z.string().regex(/^[A-Z0-9_]{2,80}$/).nullable(),
 });
 
@@ -18,21 +20,21 @@ export const connectorMappingSummarySchema = endpointMappingInputSchema.extend({
   version: z.number().int().positive(),
   connectionId: z.uuid(),
   approvalState: z.literal("founder_approved"),
-  createdAt: z.iso.datetime(),
+  createdAt: databaseTimestampSchema,
 });
 
 export const syncRunSummarySchema = z.object({
   id: z.uuid(),
   connectionId: z.uuid(),
   status: z.enum(["running", "succeeded", "failed"]),
-  windowStart: z.iso.datetime(),
-  windowEnd: z.iso.datetime(),
+  windowStart: databaseTimestampSchema,
+  windowEnd: databaseTimestampSchema,
   segment: z.string().min(1).max(300),
   metricCount: z.number().int().min(1).max(50),
   succeededCount: z.number().int().min(0).max(50),
   errorClass: z.string().nullable(),
-  startedAt: z.iso.datetime(),
-  completedAt: z.iso.datetime().nullable(),
+  startedAt: databaseTimestampSchema,
+  completedAt: databaseTimestampSchema.nullable(),
 });
 
 export const connectorWorkspaceStateSchema = z.object({

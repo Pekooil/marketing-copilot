@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { databaseTimestampSchema } from "@/db/timestamp";
+
 import { metricDefinitionInputSchema } from "./definition";
 import { funnelDefinitionInputSchema } from "./funnel";
 import { manualMetricRowSchema } from "./manual-import";
@@ -18,19 +20,19 @@ export const importBatchSummarySchema = z.object({
   rowCount: z.number().int().positive().max(500),
   sourceId: z.uuid(),
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
-  createdAt: z.iso.datetime(),
+  createdAt: databaseTimestampSchema,
 });
 
 export const metricSnapshotSummarySchema = z.object({
   id: z.uuid(),
   metricDefinitionId: z.uuid(),
-  windowStart: z.iso.datetime(),
-  windowEnd: z.iso.datetime(),
+  windowStart: databaseTimestampSchema,
+  windowEnd: databaseTimestampSchema,
   segment: z.string().min(1).max(300),
   value: z.coerce.number().finite().nullable(),
   qualityState: metricQualityStateSchema,
   qualityScore: z.coerce.number().min(0).max(1),
-  freshAsOf: z.iso.datetime(),
+  freshAsOf: databaseTimestampSchema,
   evidenceIds: z.array(z.uuid()).min(1),
   importBatchId: z.uuid().nullable(),
   syncRunId: z.uuid().nullable().optional(),
@@ -39,7 +41,7 @@ export const metricSnapshotSummarySchema = z.object({
     endpointName: z.string().min(1).max(120),
     endpointVersion: z.number().int().positive(),
     providerObjectRef: z.string().startsWith("posthog_endpoint:").max(500),
-    observedAt: z.iso.datetime(),
+    observedAt: databaseTimestampSchema,
     providerRequestId: z.string().min(1).max(200),
     checkpoint: z.string().min(1).max(500),
   }).nullable().optional(),
@@ -52,7 +54,7 @@ export const connectorMetricLineageSchema = z.array(z.object({
   endpointName: z.string().min(1).max(120),
   endpointVersion: z.coerce.number().int().positive(),
   providerObjectRef: z.string().startsWith("posthog_endpoint:").max(500),
-  observedAt: z.iso.datetime(),
+  observedAt: databaseTimestampSchema,
   providerRequestId: z.string().min(1).max(200),
   checkpoint: z.string().min(1).max(500),
 }));

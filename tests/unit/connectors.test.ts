@@ -4,6 +4,8 @@ import { connectorSyncKey } from "@/connectors/idempotency";
 import { ConnectorError } from "@/connectors/errors";
 import { PosthogEndpointAdapter } from "@/connectors/posthog/endpoint-adapter";
 import { createPosthogAuthorizationRequest, discoverPosthogOAuthServer, refreshPosthogOAuthToken } from "@/connectors/posthog/oauth";
+import { connectorWorkspaceStateSchema } from "@/connectors/workspace-schema";
+import { metricsWorkspaceStateSchema } from "@/metrics/workspace-schema";
 
 const connection = { provider: "posthog" as const, region: "us" as const, projectId: "12345", displayName: "Production analytics" };
 const credentials = { accessToken: "pha_test_token_123456" };
@@ -80,5 +82,83 @@ describe("PostHog read-only connector", () => {
     const input = { connectionId: "connection-1", metricDefinitionId: mapping.metricDefinitionId, endpointVersion: 3, ...range };
     expect(connectorSyncKey(input)).toBe(connectorSyncKey(input));
     expect(connectorSyncKey({ ...input, endpointVersion: 4 })).not.toBe(connectorSyncKey(input));
+  });
+
+  it("accepts PostgreSQL timestamp offsets in persisted connector state", () => {
+    const timestamp = "2026-08-17T04:00:00.000+00:00";
+    const state = connectorWorkspaceStateSchema.parse({
+      workspaceId: "10000000-0000-4000-8000-000000000001",
+      workspaceName: "Connector gate",
+      connection: {
+        id: "10000000-0000-4000-8000-000000000002",
+        ...connection,
+        status: "healthy",
+        scopes: ["endpoint:read"],
+        credentialConfigured: true,
+        lastHealthyAt: timestamp,
+        lastErrorCode: null,
+      },
+      mappings: [{
+        id: "10000000-0000-4000-8000-000000000003",
+        versionId: "10000000-0000-4000-8000-000000000004",
+        version: 1,
+        connectionId: "10000000-0000-4000-8000-000000000002",
+        ...mapping,
+        approvalState: "founder_approved",
+        createdAt: timestamp,
+      }],
+      runs: [{
+        id: "10000000-0000-4000-8000-000000000005",
+        connectionId: "10000000-0000-4000-8000-000000000002",
+        status: "succeeded",
+        windowStart: timestamp,
+        windowEnd: "2026-08-18T04:00:00.000+00:00",
+        segment: "All users",
+        metricCount: 1,
+        succeededCount: 1,
+        errorClass: null,
+        startedAt: timestamp,
+        completedAt: timestamp,
+      }],
+    });
+
+    expect(state.connection?.lastHealthyAt).toBe(timestamp);
+    expect(state.mappings[0]?.createdAt).toBe(timestamp);
+  });
+
+  it("accepts PostgreSQL timestamp offsets in connector-fed metric lineage", () => {
+    const timestamp = "2026-08-17T04:00:00.000+00:00";
+    const state = metricsWorkspaceStateSchema.parse({
+      workspaceId: "10000000-0000-4000-8000-000000000001",
+      workspaceName: "Connector gate",
+      definitions: [],
+      imports: [],
+      snapshots: [{
+        id: "10000000-0000-4000-8000-000000000006",
+        metricDefinitionId: mapping.metricDefinitionId,
+        windowStart: timestamp,
+        windowEnd: "2026-08-18T04:00:00.000+00:00",
+        segment: "All users",
+        value: 25,
+        qualityState: "current",
+        qualityScore: 1,
+        freshAsOf: timestamp,
+        evidenceIds: ["10000000-0000-4000-8000-000000000007"],
+        importBatchId: null,
+        syncRunId: "10000000-0000-4000-8000-000000000005",
+        sourceLineage: {
+          sourceId: "10000000-0000-4000-8000-000000000008",
+          endpointName: mapping.endpointName,
+          endpointVersion: mapping.endpointVersion,
+          providerObjectRef: "posthog_endpoint:12345:weekly-activation:v3",
+          observedAt: timestamp,
+          providerRequestId: "execution-1",
+          checkpoint: "3:execution-1",
+        },
+      }],
+      funnel: null,
+    });
+
+    expect(state.snapshots[0]?.sourceLineage?.observedAt).toBe(timestamp);
   });
 });
